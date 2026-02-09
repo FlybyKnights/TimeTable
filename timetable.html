@@ -644,6 +644,8 @@
         const idInput = wrapper.querySelector('.record-id'); const editId = idInput && idInput.value ? idInput.value : null;
         if(key==='teachers' || key==='rooms' || key==='groups'){
           const name = wrapper.querySelector('.name-input').value.trim(); if(!name) return alert('Name required');
+          // Ensure the collection exists
+          if(!master_config[key]) master_config[key] = {};
           // uniqueness check
           const existing = Object.keys(master_config[key]||{}).find(i=> master_config[key][i].name === name && i !== editId);
           if(existing) return alert('Name already exists');
@@ -653,6 +655,8 @@
         } else if(key==='classes'){
           const title = wrapper.querySelector('.title-input').value.trim();
           if(!title) return alert('Class title required');
+          // Ensure the collection exists
+          if(!master_config.classes) master_config.classes = {};
           // class title uniqueness
           const existingClass = Object.keys(master_config.classes||{}).find(i=> master_config.classes[i].title === title && i !== editId);
           if(existingClass) return alert('Class title already exists');
@@ -678,7 +682,14 @@
           dispatchMasterConfigChanged();
         }
         // after save, re-render modal content for the same key so lists/forms update
-        renderModalContent(key);
+        if(key==='teachers' || key==='rooms' || key==='groups'){
+          // If we're in configuration tab, re-render the configuration tab
+          const content = document.getElementById('modalContent'); 
+          content.innerHTML = '';
+          renderConfigurationTab(content);
+        } else {
+          renderModalContent(key);
+        }
         console.log('Saved to master_config.', key, master_config[key]);
       }
 
