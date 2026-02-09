@@ -117,6 +117,12 @@
       box-shadow:0 0 0 3px rgba(233,69,96,0.2);
     }
     .hidden{display:none}
+    .undo-banner{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:8px 12px;border-radius:6px;display:none;align-items:center;gap:8px}
+    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
+    .assign-modal{background:#fff;padding:12px;border-radius:8px;width:320px}
+    .timeslot-legend{display:flex;gap:12px;margin-top:8px;font-size:12px}
+    .timeslot-legend-item{display:flex;align-items:center;gap:4px}
+    .timeslot-legend-box{width:16px;height:16px;border:1px solid #999}
     .undo-banner{
       position:fixed;
       right:16px;
@@ -178,6 +184,10 @@
         <strong><span class="icon">📁</span> Saves</strong>
         <button id="quickSaveBtn"><span class="icon">⚡</span> Quick Save</button>
         <button id="listSavesBtn"><span class="icon">📋</span> List Saves (console)</button>
+      </div>
+      <div style="margin-top:12px">
+        <strong>Test Data</strong>
+        <button id="generateTestDataBtn">Generate Test Data</button>
       </div>
     </aside>
     <main class="main">
@@ -584,21 +594,59 @@
             groupsWrap.appendChild(cbRow);
           });
           groupsRow.appendChild(groupsLabel); groupsRow.appendChild(groupsWrap); wrapper.appendChild(groupsRow);
-          // timeslot selector: 5 slots x Mon-Fri checkboxes
+          
+          // timeslot selector: 5 slots x Mon-Fri checkboxes with conflict highlighting
           const tsRow = document.createElement('div'); tsRow.className='form-row'; const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots:';
           const tsWrap = document.createElement('div'); tsWrap.style.display='grid'; tsWrap.style.gridTemplateColumns='repeat(6,auto)'; tsWrap.style.gap='6px';
           // header
           tsWrap.appendChild(document.createElement('div'));
           ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{ const h=document.createElement('div'); h.style.fontWeight='600'; h.textContent=d; tsWrap.appendChild(h); });
+          
+          // Get teacher and room selections for conflict checking
+          const selectedTeacherId = wrapper.querySelector('.teacher-select')?.value || '';
+          const selectedRoomId = wrapper.querySelector('.room-select')?.value || '';
+          const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+          const selectedGroupIds = groupCheckboxes.filter(cb=>cb.checked).map(cb=>cb.value);
+          
           for(let s=1;s<=5;s++){
             const slotLabel = document.createElement('div'); slotLabel.textContent='Slot '+s; tsWrap.appendChild(slotLabel);
             for(let d=0;d<5;d++){
+              const cellWrap = document.createElement('div'); cellWrap.style.position='relative';
               const cb = document.createElement('input'); cb.type='checkbox'; cb.className='timeslot-checkbox'; cb.value = d+'_'+s;
               if(editId){ const existing = master_config.classes[editId].timeSlots || []; if(existing.some(ts=>ts.day===d && ts.slot===s)) cb.checked=true; }
-              tsWrap.appendChild(cb);
+              
+              // Check for conflicts at this timeslot
+              const conflicts = checkConflicts(editId || 'temp', [{day:d, slot:s}], selectedTeacherId, selectedRoomId, selectedGroupIds);
+              if(conflicts.length > 0){
+                cellWrap.style.backgroundColor = '#ffcccc';
+                cellWrap.title = 'Conflicts: ' + conflicts.map(c=>`${c.type} (${c.classTitle || c.name || c.groupName})`).join(', ');
+              } else {
+                cellWrap.style.backgroundColor = '#ccffcc';
+                cellWrap.title = 'Available';
+              }
+              
+              cellWrap.appendChild(cb);
+              tsWrap.appendChild(cellWrap);
             }
           }
           tsRow.appendChild(tsLabel); tsRow.appendChild(tsWrap); wrapper.appendChild(tsRow);
+          
+          // Add legend for timeslot colors
+          const legend = document.createElement('div'); legend.className='timeslot-legend';
+          const available = document.createElement('div'); available.className='timeslot-legend-item';
+          const availBox = document.createElement('div'); availBox.className='timeslot-legend-box'; availBox.style.backgroundColor='#ccffcc';
+          available.appendChild(availBox); available.appendChild(document.createTextNode('Available'));
+          const conflict = document.createElement('div'); conflict.className='timeslot-legend-item';
+          const conflictBox = document.createElement('div'); conflictBox.className='timeslot-legend-box'; conflictBox.style.backgroundColor='#ffcccc';
+          conflict.appendChild(conflictBox); conflict.appendChild(document.createTextNode('Conflict'));
+          legend.appendChild(available); legend.appendChild(conflict);
+          wrapper.appendChild(legend);
+          
+          // Add change listeners to teacher, room, and group selections to update conflict highlighting
+          teacherSelect.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId));
+          roomSelect.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId));
+          const allGroupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+          allGroupCheckboxes.forEach(cb => cb.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId)));
         }
 
         const btnRow = document.createElement('div'); btnRow.style.marginTop='8px';
@@ -611,6 +659,30 @@
         btnRow.appendChild(addBtn);
         wrapper.appendChild(btnRow);
         return wrapper;
+      }
+
+      // Update timeslot conflict highlighting when teacher/room/group selections change
+      function updateTimeslotConflictHighlighting(wrapper, editId){
+        const selectedTeacherId = wrapper.querySelector('.teacher-select')?.value || '';
+        const selectedRoomId = wrapper.querySelector('.room-select')?.value || '';
+        const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+        const selectedGroupIds = groupCheckboxes.filter(cb=>cb.checked).map(cb=>cb.value);
+        
+        const slotCheckboxes = wrapper.querySelectorAll('.timeslot-checkbox');
+        slotCheckboxes.forEach(cb => {
+          const parts = cb.value.split('_');
+          const day = parseInt(parts[0], 10);
+          const slot = parseInt(parts[1], 10);
+          const conflicts = checkConflicts(editId || 'temp', [{day, slot}], selectedTeacherId, selectedRoomId, selectedGroupIds);
+          const cellWrap = cb.parentElement;
+          if(conflicts.length > 0){
+            cellWrap.style.backgroundColor = '#ffcccc';
+            cellWrap.title = 'Conflicts: ' + conflicts.map(c=>`${c.type} (${c.classTitle || c.name || c.groupName})`).join(', ');
+          } else {
+            cellWrap.style.backgroundColor = '#ccffcc';
+            cellWrap.title = 'Available';
+          }
+        });
       }
 
       function openEditForm(key,id){
@@ -693,6 +765,75 @@
         const sel = prompt('Restore which save?\n'+list+'\nEnter number'); if(!sel) return; const n=parseInt(sel,10)-1; if(isNaN(n)||n<0||n>=idx.length) return alert('Invalid');
         const entry = idx[n]; const raw = localStorage.getItem(entry.key); if(!raw) return alert('Save not found');
         try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
+      });
+
+      // Generate test data function
+      document.getElementById('generateTestDataBtn').addEventListener('click', ()=>{
+        if(!confirm('This will generate test data (5 teachers, 7 groups, 11 rooms). Continue?')) return;
+        const teacherNames = ['Ms. Johnson', 'Mr. Smith', 'Dr. Williams', 'Mrs. Brown', 'Prof. Davis'];
+        const subjects = ['Language Arts', 'Science', 'Chemistry', 'Sports', 'Music', 'Technology'];
+        
+        // Clear existing data
+        master_config.teachers = {};
+        master_config.groups = {};
+        master_config.rooms = {};
+        master_config.classes = {};
+        
+        // Create teachers
+        teacherNames.forEach((name, i) => {
+          const id = uid('teacher');
+          master_config.teachers[id] = { name };
+        });
+        
+        // Create groups (class 0 through 6)
+        for(let i = 0; i <= 6; i++){
+          const id = uid('group');
+          master_config.groups[id] = { name: `Class ${i}` };
+        }
+        
+        // Create rooms (1 through 11)
+        for(let i = 1; i <= 11; i++){
+          const id = uid('room');
+          master_config.rooms[id] = { name: `Room ${i}` };
+        }
+        
+        // Create some sample classes with random subjects
+        const teacherIds = Object.keys(master_config.teachers);
+        const groupIds = Object.keys(master_config.groups);
+        const roomIds = Object.keys(master_config.rooms);
+        
+        subjects.forEach((subject, idx) => {
+          const id = uid('class');
+          const teacherId = teacherIds[idx % teacherIds.length];
+          const roomId = roomIds[idx % roomIds.length];
+          // Music and Sports can have multiple groups, others have 1-2 groups
+          let classGroups;
+          if(subject === 'Music' || subject === 'Sports'){
+            // Assign 2-4 groups for Music and Sports
+            const numGroups = 2 + Math.floor(Math.random() * 3);
+            classGroups = groupIds.slice(0, numGroups);
+          } else {
+            // Other subjects: 1-2 groups
+            const numGroups = 1 + Math.floor(Math.random() * 2);
+            classGroups = [groupIds[Math.floor(Math.random() * groupIds.length)]];
+            if(numGroups === 2){
+              const second = groupIds[Math.floor(Math.random() * groupIds.length)];
+              if(!classGroups.includes(second)) classGroups.push(second);
+            }
+          }
+          
+          master_config.classes[id] = {
+            title: subject,
+            teacherId: teacherId,
+            roomId: roomId,
+            groupIds: classGroups,
+            timeSlots: []
+          };
+        });
+        
+        dispatchMasterConfigChanged();
+        renderTimetableForCurrentView();
+        alert('Test data generated successfully! Now you can assign classes to timeslots.');
       });
 
       // Re-populate class forms when modal opens so selects/checkboxes reflect latest master_config
