@@ -455,7 +455,47 @@
       function openEditFormInConfig(key, id){
         // Re-render the configuration tab with edit form for specific item
         const content = document.getElementById('modalContent'); content.innerHTML = '';
-        renderConfigurationTab(content);
+        
+        // Render all three sections but with the specific item in edit mode
+        // Teachers section
+        const teachersSection = document.createElement('div'); teachersSection.style.marginBottom='16px';
+        const teachersTitle = document.createElement('h3'); teachersTitle.textContent = 'Teachers'; teachersTitle.style.fontSize='14px'; teachersTitle.style.marginBottom='8px';
+        teachersSection.appendChild(teachersTitle);
+        renderConfigSectionWithEdit(teachersSection, 'teachers', key === 'teachers' ? id : null);
+        content.appendChild(teachersSection);
+
+        // Rooms section
+        const roomsSection = document.createElement('div'); roomsSection.style.marginBottom='16px';
+        const roomsTitle = document.createElement('h3'); roomsTitle.textContent = 'Rooms'; roomsTitle.style.fontSize='14px'; roomsTitle.style.marginBottom='8px';
+        roomsSection.appendChild(roomsTitle);
+        renderConfigSectionWithEdit(roomsSection, 'rooms', key === 'rooms' ? id : null);
+        content.appendChild(roomsSection);
+
+        // Groups section
+        const groupsSection = document.createElement('div'); groupsSection.style.marginBottom='16px';
+        const groupsTitle = document.createElement('h3'); groupsTitle.textContent = 'Groups'; groupsTitle.style.fontSize='14px'; groupsTitle.style.marginBottom='8px';
+        groupsSection.appendChild(groupsTitle);
+        renderConfigSectionWithEdit(groupsSection, 'groups', key === 'groups' ? id : null);
+        content.appendChild(groupsSection);
+      }
+
+      function renderConfigSectionWithEdit(container, key, editId){
+        const records = master_config[key] || {};
+        const list = document.createElement('div');
+        Object.keys(records).forEach(id=>{
+          const rec = records[id];
+          const row = document.createElement('div'); row.className='record';
+          const meta = document.createElement('div'); meta.className='meta';
+          meta.textContent = rec.name || ('#'+id);
+          row.appendChild(meta); 
+          list.appendChild(row);
+        });
+        container.appendChild(list);
+
+        // Add form for new/edit record
+        const form = document.createElement('div'); form.style.marginTop='8px';
+        form.appendChild(renderFormForKey(key, editId));
+        container.appendChild(form);
       }
 
       function deleteRecordWithProtection(key, id){
@@ -495,7 +535,14 @@
         dispatchMasterConfigChanged(); 
         const content = document.getElementById('modalContent'); content.innerHTML = '';
         renderConfigurationTab(content);
-        showUndoBanner('Deleted record', ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); const content = document.getElementById('modalContent'); content.innerHTML = ''; renderConfigurationTab(content); });
+        const undoFn = ()=>{ 
+          master_config = JSON.parse(prev); 
+          dispatchMasterConfigChanged(); 
+          const content = document.getElementById('modalContent'); 
+          content.innerHTML = ''; 
+          renderConfigurationTab(content); 
+        };
+        showUndoBanner('Deleted record', undoFn);
       }
 
       function renderFormForKey(key, editId){
@@ -513,29 +560,29 @@
           // title, teacher dropdown, room dropdown, group checkboxes
           const titleRow = document.createElement('div'); titleRow.className='form-row';
           const titleLabel = document.createElement('div'); titleLabel.textContent='Title:'; const titleInput = document.createElement('input'); titleInput.className='title-input'; titleInput.style.flex='1';
-          if(editId) titleInput.value = master_config.classes[editId].title || '';
+          if(editId && master_config.classes && master_config.classes[editId]) titleInput.value = master_config.classes[editId].title || '';
           titleRow.appendChild(titleLabel); titleRow.appendChild(titleInput); wrapper.appendChild(titleRow);
 
           const teacherRow = document.createElement('div'); teacherRow.className='form-row'; const teacherLabel = document.createElement('div'); teacherLabel.textContent='Teacher:';
           const teacherSelect = document.createElement('select'); teacherSelect.className='teacher-select';
           const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='(none)'; teacherSelect.appendChild(emptyOpt);
-          Object.keys(master_config.teachers).forEach(tid=>{ const o=document.createElement('option'); o.value=tid; o.textContent=master_config.teachers[tid].name; teacherSelect.appendChild(o); });
-          if(editId) teacherSelect.value = master_config.classes[editId].teacherId || '';
+          Object.keys(master_config.teachers || {}).forEach(tid=>{ const o=document.createElement('option'); o.value=tid; o.textContent=master_config.teachers[tid].name; teacherSelect.appendChild(o); });
+          if(editId && master_config.classes && master_config.classes[editId]) teacherSelect.value = master_config.classes[editId].teacherId || '';
           teacherRow.appendChild(teacherLabel); teacherRow.appendChild(teacherSelect); wrapper.appendChild(teacherRow);
 
           const roomRow = document.createElement('div'); roomRow.className='form-row'; const roomLabel = document.createElement('div'); roomLabel.textContent='Room:';
           const roomSelect = document.createElement('select'); roomSelect.className='room-select';
           const emptyR = document.createElement('option'); emptyR.value=''; emptyR.textContent='(none)'; roomSelect.appendChild(emptyR);
-          Object.keys(master_config.rooms).forEach(rid=>{ const o=document.createElement('option'); o.value=rid; o.textContent=master_config.rooms[rid].name; roomSelect.appendChild(o); });
-          if(editId) roomSelect.value = master_config.classes[editId].roomId || '';
+          Object.keys(master_config.rooms || {}).forEach(rid=>{ const o=document.createElement('option'); o.value=rid; o.textContent=master_config.rooms[rid].name; roomSelect.appendChild(o); });
+          if(editId && master_config.classes && master_config.classes[editId]) roomSelect.value = master_config.classes[editId].roomId || '';
           roomRow.appendChild(roomLabel); roomRow.appendChild(roomSelect); wrapper.appendChild(roomRow);
 
           const groupsRow = document.createElement('div'); groupsRow.className='form-row'; const groupsLabel = document.createElement('div'); groupsLabel.textContent='Groups:';
           const groupsWrap = document.createElement('div'); groupsWrap.style.display='flex'; groupsWrap.style.flexDirection='column';
-          Object.keys(master_config.groups).forEach(gid=>{
+          Object.keys(master_config.groups || {}).forEach(gid=>{
             const cbRow = document.createElement('label'); cbRow.style.display='flex'; cbRow.style.alignItems='center';
             const cb = document.createElement('input'); cb.type='checkbox'; cb.value=gid; cb.className='group-checkbox';
-            if(editId && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) cb.checked=true;
+            if(editId && master_config.classes && master_config.classes[editId] && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) cb.checked=true;
             cbRow.appendChild(cb); cbRow.appendChild(document.createTextNode(' ' + (master_config.groups[gid].name||'Group')));
             groupsWrap.appendChild(cbRow);
           });
@@ -559,7 +606,7 @@
           
           const miniBody = document.createElement('tbody');
           const selectedSlots = new Set();
-          if(editId){ 
+          if(editId && master_config.classes && master_config.classes[editId]){ 
             const existing = master_config.classes[editId].timeSlots || []; 
             existing.forEach(ts=> selectedSlots.add(ts.day+'_'+ts.slot));
           }
