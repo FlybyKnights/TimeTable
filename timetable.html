@@ -5,7 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Timetable</title>
   <style>
-    :root{--grid-color:#d3d3d3;--bg:#808080}
+    .icon{font-style:normal;margin-right:6px}
+    :root{
+      --grid-color:#2a2a3a;
+      --bg:#1a1a2e;
+      --primary-bg:#16213e;
+      --secondary-bg:#0f3460;
+      --accent:#e94560;
+      --text-primary:#e6e6e6;
+      --text-secondary:#a0a0a0;
+      --border:#2d3748;
+    }
     html,body{height:100%;margin:0}
     body{
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
@@ -14,72 +24,174 @@
         linear-gradient(var(--grid-color) 1px, transparent 1px),
         linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
       background-size:50px 50px,50px 50px;
-      color:#111;
+      color:var(--text-primary);
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
       padding:20px;
       box-sizing:border-box;
     }
-    .wrap{max-width:1100px;margin:0 auto;background:rgba(255,255,255,0.9);padding:16px;border-radius:8px}
-    h1{margin:0 0 12px}
+    .wrap{max-width:1100px;margin:0 auto;background:var(--primary-bg);padding:16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+    h1{margin:0 0 12px;color:var(--text-primary);font-size:28px}
     #timetable{overflow:auto}
-    table{border-collapse:collapse;width:100%}
-    th,td{border:1px solid #ccc;padding:6px;text-align:center}
-    th{background:#f3f3f3}
+    table{border-collapse:collapse;width:100%;background:var(--secondary-bg);border-radius:8px;overflow:hidden}
+    th,td{border:1px solid var(--border);padding:10px;text-align:center;color:var(--text-primary)}
+    th{background:var(--secondary-bg);font-weight:600;text-transform:uppercase;font-size:12px;letter-spacing:0.5px}
     .controls{margin:8px 0}
-    button{padding:8px 12px;font-size:14px}
+    button{
+      padding:10px 16px;
+      font-size:14px;
+      background:var(--secondary-bg);
+      color:var(--text-primary);
+      border:1px solid var(--border);
+      border-radius:6px;
+      cursor:pointer;
+      transition:all 0.2s ease;
+      font-weight:500;
+    }
+    button:hover{
+      background:var(--accent);
+      border-color:var(--accent);
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(233,69,96,0.3);
+    }
     /* Sidebar and modal for CRUD UI */
     .layout{display:flex;gap:16px}
-    .sidebar{width:240px;padding:12px;border-right:1px solid #ddd}
-    .sidebar h2{font-size:16px;margin:0 0 8px}
+    .sidebar{
+      width:240px;
+      padding:12px;
+      border-right:1px solid var(--border);
+      background:rgba(15,52,96,0.3);
+      border-radius:8px;
+    }
+    .sidebar h2{font-size:18px;margin:0 0 12px;color:var(--accent);font-weight:600}
     .sidebar button{display:block;width:100%;margin:6px 0;text-align:left}
+    .sidebar strong{color:var(--accent);font-size:14px}
     .main{flex:1}
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
-    .modal{background:#fff;border-radius:8px;padding:12px;width:720px;max-width:95%;box-shadow:0 6px 24px rgba(0,0,0,0.2)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+    .modal{
+      background:var(--primary-bg);
+      border-radius:12px;
+      padding:20px;
+      width:720px;
+      max-width:95%;
+      box-shadow:0 12px 48px rgba(0,0,0,0.5);
+      border:1px solid var(--border);
+    }
     .tabs{display:flex;gap:8px;margin-bottom:8px}
-    .tab{padding:6px 10px;border:1px solid #ccc;border-bottom:none;background:#f7f7f7;cursor:pointer}
-    .tab.active{background:#fff;border-bottom:1px solid #fff}
-    .tab-content{border:1px solid #ccc;padding:8px;max-height:320px;overflow:auto;background:#fff}
-    .record{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid #eee}
-    .record .meta{flex:1}
-    .form-row{display:flex;gap:8px;align-items:center;margin:6px 0}
+    .tab{
+      padding:8px 14px;
+      border:1px solid var(--border);
+      border-bottom:none;
+      background:var(--secondary-bg);
+      cursor:pointer;
+      color:var(--text-secondary);
+      border-radius:6px 6px 0 0;
+      transition:all 0.2s ease;
+    }
+    .tab:hover{background:var(--accent);color:var(--text-primary)}
+    .tab.active{background:var(--primary-bg);border-bottom:1px solid var(--primary-bg);color:var(--text-primary);font-weight:600}
+    .tab-content{
+      border:1px solid var(--border);
+      padding:12px;
+      max-height:320px;
+      overflow:auto;
+      background:var(--primary-bg);
+      border-radius:0 8px 8px 8px;
+    }
+    .record{display:flex;justify-content:space-between;padding:10px;border-bottom:1px solid var(--border);transition:background 0.2s ease}
+    .record:hover{background:var(--secondary-bg)}
+    .record .meta{flex:1;color:var(--text-primary)}
+    .form-row{display:flex;gap:8px;align-items:center;margin:8px 0}
+    .form-row label{color:var(--text-primary)}
+    .form-row input,.form-row select{
+      background:var(--secondary-bg);
+      border:1px solid var(--border);
+      color:var(--text-primary);
+      padding:8px;
+      border-radius:4px;
+      font-size:14px;
+    }
+    .form-row input:focus,.form-row select:focus{
+      outline:none;
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px rgba(233,69,96,0.2);
+    }
     .hidden{display:none}
-    .undo-banner{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:8px 12px;border-radius:6px;display:none;align-items:center;gap:8px}
-    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
-    .assign-modal{background:#fff;padding:12px;border-radius:8px;width:320px}
+    .undo-banner{
+      position:fixed;
+      right:16px;
+      bottom:16px;
+      background:var(--secondary-bg);
+      color:var(--text-primary);
+      padding:12px 16px;
+      border-radius:8px;
+      display:none;
+      align-items:center;
+      gap:12px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.4);
+      border:1px solid var(--accent);
+    }
+    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+    .assign-modal{
+      background:var(--primary-bg);
+      padding:20px;
+      border-radius:12px;
+      width:320px;
+      box-shadow:0 12px 48px rgba(0,0,0,0.5);
+      border:1px solid var(--border);
+    }
+    .assign-modal h3{color:var(--text-primary);margin-top:0}
+    .assign-modal label{color:var(--text-primary)}
+    .assign-modal select{
+      background:var(--secondary-bg);
+      border:1px solid var(--border);
+      color:var(--text-primary);
+      padding:8px;
+      border-radius:4px;
+      width:100%;
+    }
+    /* Radio button styling */
+    input[type="radio"]{
+      accent-color:var(--accent);
+      cursor:pointer;
+    }
+    label{cursor:pointer;color:var(--text-primary)}
+    /* Timetable cell hover */
+    .timetable-cell{cursor:pointer;transition:all 0.2s ease}
+    .timetable-cell:hover{background:var(--accent);transform:scale(1.05)}
   </style>
 </head>
 <body>
   <div class="wrap layout">
     <aside class="sidebar">
-      <h2>Manage</h2>
-      <button id="addClassBtn">+ Add Class</button>
-      <button id="addTeacherBtn">+ Add Teacher</button>
-      <button id="addRoomBtn">+ Add Room</button>
-      <button id="addGroupBtn">+ Add Group</button>
+      <h2><span class="icon">⚙️</span> Manage</h2>
+      <button id="addClassBtn"><span class="icon">📚</span> Add Class</button>
+      <button id="addTeacherBtn"><span class="icon">👨‍🏫</span> Add Teacher</button>
+      <button id="addRoomBtn"><span class="icon">🚪</span> Add Room</button>
+      <button id="addGroupBtn"><span class="icon">👥</span> Add Group</button>
       <div style="margin-top:12px">
-        <strong>Config</strong>
-        <button id="saveConfigBtn">Save master_config</button>
-        <button id="restoreConfigBtn">Restore master_config</button>
+        <strong><span class="icon">🔧</span> Config</strong>
+        <button id="saveConfigBtn"><span class="icon">💾</span> Save master_config</button>
+        <button id="restoreConfigBtn"><span class="icon">↩️</span> Restore master_config</button>
       </div>
       <div style="margin-top:12px">
-        <strong>Saves</strong>
-        <button id="quickSaveBtn">Quick Save</button>
-        <button id="listSavesBtn">List Saves (console)</button>
+        <strong><span class="icon">📁</span> Saves</strong>
+        <button id="quickSaveBtn"><span class="icon">⚡</span> Quick Save</button>
+        <button id="listSavesBtn"><span class="icon">📋</span> List Saves (console)</button>
       </div>
     </aside>
     <main class="main">
-      <h1>Timetable</h1>
+      <h1><span class="icon">📅</span> Timetable</h1>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
         <div>
-          <label><input type="radio" name="viewMode" value="teacher" checked> Teachers</label>
-          <label><input type="radio" name="viewMode" value="group"> Groups</label>
-          <label><input type="radio" name="viewMode" value="room"> Rooms</label>
+          <label><input type="radio" name="viewMode" value="teacher" checked aria-label="View Teachers timetable"> <span class="icon">👨‍🏫</span> Teachers</label>
+          <label><input type="radio" name="viewMode" value="group" aria-label="View Groups timetable"> <span class="icon">👥</span> Groups</label>
+          <label><input type="radio" name="viewMode" value="room" aria-label="View Rooms timetable"> <span class="icon">🚪</span> Rooms</label>
         </div>
         <div id="topTabs" style="display:flex;gap:6px;overflow:auto"></div>
       </div>
       <div class="controls">
-        <button id="exportBtn">Export JSON</button>
+        <button id="exportBtn"><span class="icon">⬇️</span> Export JSON</button>
       </div>
       <div id="timetable" role="region" aria-label="Weekly timetable"></div>
     </main>
@@ -90,7 +202,7 @@
     <div class="modal" role="document">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="tabs" id="modalTabs"></div>
-        <div><button id="closeModalBtn">Close</button></div>
+        <div><button id="closeModalBtn"><span class="icon">✖️</span> Close</button></div>
       </div>
       <div id="modalContent" class="tab-content"></div>
     </div>
@@ -99,19 +211,19 @@
   <!-- Assignment modal (replace prompt) -->
   <div id="assignBackdrop" class="assign-modal-backdrop" role="dialog" aria-hidden="true">
     <div class="assign-modal">
-      <h3>Assign Class</h3>
+      <h3><span class="icon">➕</span> Assign Class</h3>
       <div style="margin:8px 0">
         <label>Class: <select id="assignClassSelect"></select></label>
       </div>
-      <div id="assignConflict" style="color:#b00;margin-bottom:8px"></div>
+      <div id="assignConflict" style="color:var(--accent);margin-bottom:8px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button id="assignCancelBtn">Cancel</button>
-        <button id="assignConfirmBtn">Assign</button>
+        <button id="assignCancelBtn"><span class="icon">✖️</span> Cancel</button>
+        <button id="assignConfirmBtn"><span class="icon">✔️</span> Assign</button>
       </div>
     </div>
   </div>
 
-  <div id="undoBanner" class="undo-banner"><span id="undoMsg"></span><button id="undoBtn">Undo</button></div>
+  <div id="undoBanner" class="undo-banner"><span id="undoMsg"></span><button id="undoBtn"><span class="icon">↩️</span> Undo</button></div>
 
   <script>
     // setup will be executed when the HTML file is loaded
@@ -372,9 +484,14 @@
             if(key==='classes') meta.textContent = (rec.title||'Untitled') + ' — ' + (rec.class_code||'');
             else meta.textContent = rec.name || ('#'+id);
             const actions = document.createElement('div');
-            const edit = document.createElement('button'); edit.textContent='Edit';
+            const edit = document.createElement('button'); 
+            const editIcon = document.createElement('span'); editIcon.className='icon'; editIcon.textContent='✏️';
+            edit.appendChild(editIcon); edit.appendChild(document.createTextNode(' Edit'));
             edit.addEventListener('click', ()=> openEditForm(key,id));
-            const del = document.createElement('button'); del.textContent='Delete'; del.style.marginLeft='6px'; del.addEventListener('click', ()=> deleteRecord(key,id));
+            const del = document.createElement('button'); 
+            const delIcon = document.createElement('span'); delIcon.className='icon'; delIcon.textContent='🗑️';
+            del.appendChild(delIcon); del.appendChild(document.createTextNode(' Delete'));
+            del.style.marginLeft='6px'; del.addEventListener('click', ()=> deleteRecord(key,id));
             actions.appendChild(edit); actions.appendChild(del);
           row.appendChild(meta); row.appendChild(actions); list.appendChild(row);
         });
@@ -460,7 +577,11 @@
         }
 
         const btnRow = document.createElement('div'); btnRow.style.marginTop='8px';
-        const addBtn = document.createElement('button'); addBtn.textContent = editId? 'Save':'Add';
+        const addBtn = document.createElement('button'); 
+        const btnIcon = document.createElement('span'); btnIcon.className='icon'; 
+        btnIcon.textContent = editId? '💾':'➕';
+        addBtn.appendChild(btnIcon); 
+        addBtn.appendChild(document.createTextNode(editId? ' Save':' Add'));
         addBtn.addEventListener('click', ()=> saveFormKey(key, wrapper));
         btnRow.appendChild(addBtn);
         wrapper.appendChild(btnRow);
