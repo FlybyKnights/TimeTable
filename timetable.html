@@ -89,7 +89,21 @@
       transition:all 0.2s ease;
     }
     .tab:hover{background:var(--accent);color:var(--text-primary)}
-    .tab.active{background:var(--primary-bg);border-bottom:1px solid var(--primary-bg);color:var(--text-primary);font-weight:600}
+    .tab.active{background:var(--accent);border-bottom:1px solid var(--primary-bg);color:var(--text-primary);font-weight:600}
+    /* Nested tabs for sub-objects */
+    .nested-tabs{display:flex;gap:4px;margin:8px 0;flex-wrap:wrap}
+    .nested-tab{
+      padding:6px 12px;
+      border:1px solid var(--border);
+      background:var(--secondary-bg);
+      cursor:pointer;
+      color:var(--text-secondary);
+      border-radius:4px;
+      transition:all 0.2s ease;
+      font-size:13px;
+    }
+    .nested-tab:hover{background:var(--accent);color:var(--text-primary)}
+    .nested-tab.active{background:var(--accent);color:var(--text-primary);font-weight:600}
     .tab-content{
       border:1px solid var(--border);
       padding:12px;
@@ -165,6 +179,58 @@
     /* Timetable cell hover */
     .timetable-cell{cursor:pointer;transition:all 0.2s ease}
     .timetable-cell:hover{background:var(--accent);transform:scale(1.05)}
+    /* Class editor modal - separate from main modal */
+    .class-editor-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);z-index:1000}
+    .class-editor-modal{
+      background:var(--primary-bg);
+      border-radius:12px;
+      padding:20px;
+      width:90%;
+      max-width:900px;
+      max-height:90vh;
+      overflow:auto;
+      box-shadow:0 12px 48px rgba(0,0,0,0.5);
+      border:1px solid var(--border);
+    }
+    /* Timeslot table in class editor */
+    .timeslot-table{
+      width:100%;
+      border-collapse:collapse;
+      margin:12px 0;
+    }
+    .timeslot-table th, .timeslot-table td{
+      border:1px solid var(--border);
+      padding:12px;
+      text-align:center;
+      min-width:80px;
+    }
+    .timeslot-table th{
+      background:var(--secondary-bg);
+      font-weight:600;
+    }
+    .timeslot-available{
+      background:#90ee90;
+      color:#000;
+      cursor:pointer;
+    }
+    .timeslot-available:hover{
+      background:#7ad87a;
+    }
+    .timeslot-unavailable{
+      background:#808080;
+      color:#fff;
+      cursor:not-allowed;
+    }
+    .timeslot-selected{
+      background:#4CAF50;
+      color:#fff;
+      font-weight:600;
+    }
+    .conflict-text{
+      font-size:10px;
+      color:#d00;
+      margin-top:4px;
+    }
   </style>
 </head>
 <body>
@@ -174,10 +240,8 @@
       <button id="addClassBtn">+ Add Class</button>
       <button id="addConfigBtn">+ Configuration</button>
       <h2><span class="icon">⚙️</span> Manage</h2>
-      <button id="addClassBtn"><span class="icon">📚</span> Add Class</button>
-      <button id="addTeacherBtn"><span class="icon">👨‍🏫</span> Add Teacher</button>
-      <button id="addRoomBtn"><span class="icon">🚪</span> Add Room</button>
-      <button id="addGroupBtn"><span class="icon">👥</span> Add Group</button>
+      <button id="newClassBtn"><span class="icon">➕</span> New Class</button>
+      <button id="settingsBtn"><span class="icon">⚙️</span> Settings</button>
       <div style="margin-top:12px">
         <strong><span class="icon">🔧</span> Config</strong>
         <button id="saveConfigBtn"><span class="icon">💾</span> Save master_config</button>
@@ -196,13 +260,13 @@
     <main class="main">
       <h1><span class="icon">📅</span> Timetable</h1>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
-        <div>
-          <label><input type="radio" name="viewMode" value="teacher" checked aria-label="View Teachers timetable"> <span class="icon">👨‍🏫</span> Teachers</label>
-          <label><input type="radio" name="viewMode" value="group" aria-label="View Groups timetable"> <span class="icon">👥</span> Groups</label>
-          <label><input type="radio" name="viewMode" value="room" aria-label="View Rooms timetable"> <span class="icon">🚪</span> Rooms</label>
+        <div class="tabs" id="viewModeTabs">
+          <div class="tab active" data-mode="teacher"><span class="icon">👨‍🏫</span> Teachers</div>
+          <div class="tab" data-mode="group"><span class="icon">👥</span> Groups</div>
+          <div class="tab" data-mode="room"><span class="icon">🚪</span> Rooms</div>
         </div>
-        <div id="topTabs" style="display:flex;gap:6px;overflow:auto"></div>
       </div>
+      <div id="topTabs" class="nested-tabs"></div>
       <div class="controls">
         <button id="exportBtn"><span class="icon">⬇️</span> Export JSON</button>
       </div>
@@ -237,6 +301,17 @@
   </div>
 
   <div id="undoBanner" class="undo-banner"><span id="undoMsg"></span><button id="undoBtn"><span class="icon">↩️</span> Undo</button></div>
+
+  <!-- Class Editor Modal -->
+  <div id="classEditorBackdrop" class="class-editor-backdrop" role="dialog" aria-hidden="true">
+    <div class="class-editor-modal" role="document">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0;color:var(--accent)"><span class="icon">📚</span> <span id="classEditorTitle">Class Editor</span></h2>
+        <button id="closeClassEditorBtn"><span class="icon">✖️</span> Close</button>
+      </div>
+      <div id="classEditorContent"></div>
+    </div>
+  </div>
 
   <script>
     // setup will be executed when the HTML file is loaded
@@ -280,10 +355,31 @@
       renderTimetableForCurrentView();
     }
 
-    // When a cell is clicked allow assigning a class to that timeslot
+    // When a cell is clicked allow assigning a class to that timeslot or editing existing class
     function onCellClick(day, slot, td){
-      // open assignment modal (in-UI chooser)
-      openAssignModal(day, slot, td);
+      // Check if there's already a class assigned
+      const existingClassId = findClassInCell(day, slot);
+      if(existingClassId){
+        // Open class editor for this class
+        openClassEditor(existingClassId);
+      } else {
+        // open assignment modal (in-UI chooser)
+        openAssignModal(day, slot, td);
+      }
+    }
+    
+    // Find class ID assigned to a specific timeslot
+    function findClassInCell(day, slot){
+      const classes = master_config.classes || {};
+      for(const cid of Object.keys(classes)){
+        const cls = classes[cid];
+        if(Array.isArray(cls.timeSlots)){
+          if(cls.timeSlots.some(ts => ts.day === day && ts.slot === slot)){
+            return cid;
+          }
+        }
+      }
+      return null;
     }
 
     // Assignment modal logic
@@ -498,6 +594,302 @@
         // Refresh timetable and perform auto-save when modal closes
         renderTimetableForCurrentView();
         autoSave();
+      }
+
+      // Class Editor Modal Functions
+      function openClassEditor(classId){
+        const backdrop = document.getElementById('classEditorBackdrop');
+        const content = document.getElementById('classEditorContent');
+        const titleEl = document.getElementById('classEditorTitle');
+        
+        if(classId){
+          const cls = master_config.classes[classId];
+          if(!cls) return alert('Class not found');
+          titleEl.textContent = cls.title || 'Edit Class';
+        } else {
+          titleEl.textContent = 'New Class';
+        }
+        
+        backdrop.style.display = 'flex';
+        backdrop.setAttribute('aria-hidden', 'false');
+        
+        renderClassEditorForm(classId);
+      }
+      
+      function closeClassEditor(){
+        const backdrop = document.getElementById('classEditorBackdrop');
+        backdrop.style.display = 'none';
+        backdrop.setAttribute('aria-hidden', 'true');
+        renderTimetableForCurrentView();
+        autoSave();
+      }
+      
+      function renderClassEditorForm(editId){
+        const content = document.getElementById('classEditorContent');
+        content.innerHTML = '';
+        
+        const wrapper = document.createElement('div');
+        
+        // Class title
+        const titleRow = document.createElement('div');
+        titleRow.className = 'form-row';
+        titleRow.innerHTML = '<label>Title:</label>';
+        const titleInput = document.createElement('input');
+        titleInput.className = 'title-input';
+        titleInput.style.flex = '1';
+        if(editId) titleInput.value = master_config.classes[editId].title || '';
+        titleRow.appendChild(titleInput);
+        wrapper.appendChild(titleRow);
+        
+        // Teacher select
+        const teacherRow = document.createElement('div');
+        teacherRow.className = 'form-row';
+        teacherRow.innerHTML = '<label>Teacher:</label>';
+        const teacherSelect = document.createElement('select');
+        teacherSelect.className = 'teacher-select';
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '(none)';
+        teacherSelect.appendChild(emptyOpt);
+        Object.keys(master_config.teachers).forEach(tid => {
+          const o = document.createElement('option');
+          o.value = tid;
+          o.textContent = master_config.teachers[tid].name;
+          teacherSelect.appendChild(o);
+        });
+        if(editId) teacherSelect.value = master_config.classes[editId].teacherId || '';
+        teacherRow.appendChild(teacherSelect);
+        wrapper.appendChild(teacherRow);
+        
+        // Room select
+        const roomRow = document.createElement('div');
+        roomRow.className = 'form-row';
+        roomRow.innerHTML = '<label>Room:</label>';
+        const roomSelect = document.createElement('select');
+        roomSelect.className = 'room-select';
+        const emptyR = document.createElement('option');
+        emptyR.value = '';
+        emptyR.textContent = '(none)';
+        roomSelect.appendChild(emptyR);
+        Object.keys(master_config.rooms).forEach(rid => {
+          const o = document.createElement('option');
+          o.value = rid;
+          o.textContent = master_config.rooms[rid].name;
+          roomSelect.appendChild(o);
+        });
+        if(editId) roomSelect.value = master_config.classes[editId].roomId || '';
+        roomRow.appendChild(roomSelect);
+        wrapper.appendChild(roomRow);
+        
+        // Groups checkboxes
+        const groupsRow = document.createElement('div');
+        groupsRow.className = 'form-row';
+        groupsRow.innerHTML = '<label>Groups:</label>';
+        const groupsWrap = document.createElement('div');
+        groupsWrap.style.display = 'flex';
+        groupsWrap.style.flexDirection = 'column';
+        Object.keys(master_config.groups).forEach(gid => {
+          const cbRow = document.createElement('label');
+          cbRow.style.display = 'flex';
+          cbRow.style.alignItems = 'center';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = gid;
+          cb.className = 'group-checkbox';
+          if(editId && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) cb.checked = true;
+          cbRow.appendChild(cb);
+          cbRow.appendChild(document.createTextNode(' ' + (master_config.groups[gid].name || 'Group')));
+          groupsWrap.appendChild(cbRow);
+        });
+        groupsRow.appendChild(groupsWrap);
+        wrapper.appendChild(groupsRow);
+        
+        // Timeslot table
+        const tsLabel = document.createElement('h3');
+        tsLabel.textContent = 'Schedule (Click cells to assign/unassign)';
+        tsLabel.style.color = 'var(--text-primary)';
+        tsLabel.style.marginTop = '16px';
+        wrapper.appendChild(tsLabel);
+        
+        const table = document.createElement('table');
+        table.className = 'timeslot-table';
+        
+        // Header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.innerHTML = '<th>Slot</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>';
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        
+        // Body
+        const tbody = document.createElement('tbody');
+        for(let slot = 1; slot <= 5; slot++){
+          const row = document.createElement('tr');
+          const slotHeader = document.createElement('th');
+          slotHeader.textContent = 'Slot ' + slot;
+          row.appendChild(slotHeader);
+          
+          for(let day = 0; day < 5; day++){
+            const cell = document.createElement('td');
+            cell.setAttribute('data-day', day);
+            cell.setAttribute('data-slot', slot);
+            
+            // Check if this slot is selected for this class
+            const isSelected = editId && master_config.classes[editId] && master_config.classes[editId].timeSlots && 
+              master_config.classes[editId].timeSlots.some(ts => ts.day === day && ts.slot === slot);
+            
+            // Get current selections for conflict checking
+            const selectedTeacherId = teacherSelect.value;
+            const selectedRoomId = roomSelect.value;
+            const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+            const selectedGroupIds = groupCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+            
+            // Check for conflicts
+            const conflicts = checkConflicts(editId || 'temp', [{day, slot}], selectedTeacherId, selectedRoomId, selectedGroupIds);
+            
+            if(isSelected){
+              cell.className = 'timeslot-selected';
+              cell.innerHTML = '✓ Assigned';
+            } else if(conflicts.length > 0){
+              cell.className = 'timeslot-unavailable';
+              const conflictText = document.createElement('div');
+              conflictText.className = 'conflict-text';
+              conflictText.textContent = conflicts.map(c => c.type.replace(' conflict', '')).join(', ');
+              cell.appendChild(document.createTextNode('Conflict'));
+              cell.appendChild(conflictText);
+            } else {
+              cell.className = 'timeslot-available';
+              cell.textContent = 'Available';
+            }
+            
+            // Click handler to toggle assignment
+            cell.addEventListener('click', () => {
+              if(!editId) {
+                alert('Please save the class first by clicking the Save Class button before assigning timeslots');
+                return;
+              }
+              const cls = master_config.classes[editId];
+              cls.timeSlots = cls.timeSlots || [];
+              const idx = cls.timeSlots.findIndex(ts => ts.day === day && ts.slot === slot);
+              if(idx >= 0){
+                // Remove
+                cls.timeSlots.splice(idx, 1);
+              } else {
+                // Add (check conflicts first)
+                const currTeacher = teacherSelect.value;
+                const currRoom = roomSelect.value;
+                const currGroups = Array.from(wrapper.querySelectorAll('.group-checkbox')).filter(cb => cb.checked).map(cb => cb.value);
+                const conflicts = checkConflicts(editId, [{day, slot}], currTeacher, currRoom, currGroups);
+                if(conflicts.length > 0){
+                  alert('Cannot assign: ' + conflicts.map(c => c.type + ': ' + (c.classTitle || c.name || c.groupName)).join(', '));
+                  return;
+                }
+                cls.timeSlots.push({day, slot});
+              }
+              dispatchMasterConfigChanged();
+              renderClassEditorForm(editId); // Re-render to update table
+            });
+            
+            row.appendChild(cell);
+          }
+          tbody.appendChild(row);
+        }
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        
+        // Legend
+        const legend = document.createElement('div');
+        legend.style.display = 'flex';
+        legend.style.gap = '16px';
+        legend.style.margin = '12px 0';
+        legend.innerHTML = `
+          <div style="display:flex;align-items:center;gap:4px">
+            <div style="width:20px;height:20px;background:#90ee90;border:1px solid #000"></div>
+            <span>Available</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <div style="width:20px;height:20px;background:#808080;border:1px solid #000"></div>
+            <span>Conflict</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <div style="width:20px;height:20px;background:#4CAF50;border:1px solid #000"></div>
+            <span>Assigned</span>
+          </div>
+        `;
+        wrapper.appendChild(legend);
+        
+        // Save button
+        const btnRow = document.createElement('div');
+        btnRow.style.marginTop = '16px';
+        btnRow.style.display = 'flex';
+        btnRow.style.gap = '8px';
+        
+        const refreshBtn = document.createElement('button');
+        refreshBtn.innerHTML = '<span class="icon">🔄</span> Refresh Conflicts';
+        refreshBtn.addEventListener('click', () => renderClassEditorForm(editId));
+        btnRow.appendChild(refreshBtn);
+        
+        const saveBtn = document.createElement('button');
+        saveBtn.innerHTML = '<span class="icon">💾</span> Save Class';
+        saveBtn.addEventListener('click', () => saveClassFromEditor(editId, wrapper));
+        btnRow.appendChild(saveBtn);
+        
+        if(editId){
+          const deleteBtn = document.createElement('button');
+          deleteBtn.innerHTML = '<span class="icon">🗑️</span> Delete Class';
+          deleteBtn.addEventListener('click', () => {
+            if(confirm('Delete this class?')){
+              delete master_config.classes[editId];
+              dispatchMasterConfigChanged();
+              closeClassEditor();
+            }
+          });
+          btnRow.appendChild(deleteBtn);
+        }
+        
+        wrapper.appendChild(btnRow);
+        
+        content.appendChild(wrapper);
+      }
+      
+      function saveClassFromEditor(editId, wrapper){
+        const title = wrapper.querySelector('.title-input').value.trim();
+        if(!title) return alert('Class title required');
+        
+        // Check uniqueness
+        const existingClass = Object.keys(master_config.classes || {}).find(i => 
+          master_config.classes[i].title === title && i !== editId
+        );
+        if(existingClass) return alert('Class title already exists');
+        
+        const teacherId = wrapper.querySelector('.teacher-select').value || '';
+        const roomId = wrapper.querySelector('.room-select').value || '';
+        const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+        const groupIds = groupCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+        
+        const id = editId || uid('class');
+        
+        // Preserve existing timeslots if editing, otherwise start with empty array
+        const timeSlots = editId && master_config.classes[editId] ? 
+          (master_config.classes[editId].timeSlots || []) : [];
+        
+        master_config.classes[id] = {
+          title,
+          teacherId,
+          roomId,
+          groupIds,
+          timeSlots
+        };
+        
+        dispatchMasterConfigChanged();
+        
+        // If this was a new class, re-render with the new ID so timeslots can be assigned
+        if(!editId){
+          alert('Class created! Now you can assign timeslots.');
+          renderClassEditorForm(id);
+        } else {
+          alert('Class saved successfully!');
+        }
       }
 
       function renderModalTabs(activeKey){
@@ -981,6 +1373,7 @@
       document.getElementById('addClassBtn').addEventListener('click', ()=> openModal('classes'));
       document.getElementById('addConfigBtn').addEventListener('click', ()=> openModal('configuration'));
       document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+      document.getElementById('closeClassEditorBtn').addEventListener('click', closeClassEditor);
       document.getElementById('quickSaveBtn').addEventListener('click', ()=>{ quickSave(); alert('Quick saved'); });
       document.getElementById('listSavesBtn').addEventListener('click', ()=>{ console.log('Saves index:', listSaves()); alert('Saves logged to console'); });
       document.getElementById('saveConfigBtn').addEventListener('click', ()=>{
@@ -1073,26 +1466,59 @@
 
       // rebuild modal tabs when master_config changes (simple approach: re-render on open)
 
+      // View mode tabs (replacing radio buttons)
+      let currentViewMode = 'teacher';
+      
+      document.querySelectorAll('#viewModeTabs .tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Update active state
+          document.querySelectorAll('#viewModeTabs .tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Update current mode
+          currentViewMode = tab.getAttribute('data-mode');
+          
+          // Re-render
+          renderTopTabs();
+          renderTimetableForCurrentView();
+        });
+      });
+
       // Top tabs rendering and timetable filtering
       function renderTopTabs(){
         const container = document.getElementById('topTabs'); container.innerHTML = '';
-        const modeEl = document.querySelector('input[name="viewMode"]:checked');
-        const mode = modeEl ? modeEl.value : 'teacher';
+        const mode = currentViewMode;
         let items = [];
         if(mode==='teacher') items = Object.keys(master_config.teachers||{}).map(id=>({id,name: master_config.teachers[id].name}));
         if(mode==='group') items = Object.keys(master_config.groups||{}).map(id=>({id,name: master_config.groups[id].name}));
         if(mode==='room') items = Object.keys(master_config.rooms||{}).map(id=>({id,name: master_config.rooms[id].name}));
         if(items.length===0){ container.textContent = '(no items)'; return; }
-        items.forEach(it=>{
-          const b = document.createElement('button'); b.textContent = it.name || it.id; b.addEventListener('click', ()=>{ renderTimetableFor(mode, it.id); }); container.appendChild(b);
+        
+        // Track currently selected item
+        let selectedId = items[0].id;
+        
+        items.forEach((it, idx) => {
+          const b = document.createElement('div');
+          b.className = 'nested-tab' + (idx === 0 ? ' active' : '');
+          b.textContent = it.name || it.id;
+          b.addEventListener('click', () => {
+            // Update active state
+            document.querySelectorAll('#topTabs .nested-tab').forEach(t => t.classList.remove('active'));
+            b.classList.add('active');
+            selectedId = it.id;
+            renderTimetableFor(mode, it.id);
+          });
+          container.appendChild(b);
         });
+        
+        // Render first item by default
+        if(items.length > 0){
+          renderTimetableFor(mode, items[0].id);
+        }
       }
 
-      document.querySelectorAll('input[name="viewMode"]').forEach(r=> r.addEventListener('change', ()=>{ renderTopTabs(); renderTimetableForCurrentView(); }));
-
       function renderTimetableForCurrentView(){
-        const modeEl = document.querySelector('input[name="viewMode"]:checked');
-        const mode = modeEl ? modeEl.value : 'teacher';
+        const mode = currentViewMode;
         const items = (mode==='teacher'? Object.keys(master_config.teachers||{}): mode==='group'? Object.keys(master_config.groups||{}): Object.keys(master_config.rooms||{}));
         if(items.length===0) return clearTimetable();
         renderTimetableFor(mode, items[0]);
@@ -1119,7 +1545,6 @@
             });
           }
         });
-        renderTopTabs();
       }
 
       // update top tabs when master_config changes
