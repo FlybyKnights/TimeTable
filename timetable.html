@@ -923,22 +923,26 @@
         ensureMasterConfigStructure(); // Ensure structure exists before saving
         const idInput = wrapper.querySelector('.record-id'); const editId = idInput && idInput.value ? idInput.value : null;
         if(key==='teachers' || key==='rooms' || key==='groups'){
+          // Ensure the key exists in master_config
+          if(!master_config[key]) master_config[key] = {};
           const name = wrapper.querySelector('.name-input').value.trim(); if(!name) return alert('Name required');
           // Ensure the collection exists
           if(!master_config[key]) master_config[key] = {};
           // uniqueness check
-          const existing = Object.keys(master_config[key]||{}).find(i=> master_config[key][i].name === name && i !== editId);
+          const existing = Object.keys(master_config[key]).find(i=> master_config[key][i].name === name && i !== editId);
           if(existing) return alert('Name already exists');
           const id = editId || uid(key);
           master_config[key][id] = { name };
           dispatchMasterConfigChanged();
         } else if(key==='classes'){
+          // Ensure classes exists in master_config
+          if(!master_config.classes) master_config.classes = {};
           const title = wrapper.querySelector('.title-input').value.trim();
           if(!title) return alert('Class title required');
           // Ensure the collection exists
           if(!master_config.classes) master_config.classes = {};
           // class title uniqueness
-          const existingClass = Object.keys(master_config.classes||{}).find(i=> master_config.classes[i].title === title && i !== editId);
+          const existingClass = Object.keys(master_config.classes).find(i=> master_config.classes[i].title === title && i !== editId);
           if(existingClass) return alert('Class title already exists');
           const teacherId = wrapper.querySelector('.teacher-select').value || '';
           const roomId = wrapper.querySelector('.room-select').value || '';
