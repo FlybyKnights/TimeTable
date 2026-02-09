@@ -28,55 +28,183 @@
     th{background:#f3f3f3}
     .controls{margin:8px 0}
     button{padding:8px 12px;font-size:14px}
+    /* Sidebar and modal for CRUD UI */
+    .layout{display:flex;gap:16px}
+    .sidebar{width:240px;padding:12px;border-right:1px solid #ddd}
+    .sidebar h2{font-size:16px;margin:0 0 8px}
+    .sidebar button{display:block;width:100%;margin:6px 0;text-align:left}
+    .main{flex:1}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
+    .modal{background:#fff;border-radius:8px;padding:12px;width:720px;max-width:95%;box-shadow:0 6px 24px rgba(0,0,0,0.2)}
+    .tabs{display:flex;gap:8px;margin-bottom:8px}
+    .tab{padding:6px 10px;border:1px solid #ccc;border-bottom:none;background:#f7f7f7;cursor:pointer}
+    .tab.active{background:#fff;border-bottom:1px solid #fff}
+    .tab-content{border:1px solid #ccc;padding:8px;max-height:320px;overflow:auto;background:#fff}
+    .record{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid #eee}
+    .record .meta{flex:1}
+    .form-row{display:flex;gap:8px;align-items:center;margin:6px 0}
+    .hidden{display:none}
+    .undo-banner{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:8px 12px;border-radius:6px;display:none;align-items:center;gap:8px}
+    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
+    .assign-modal{background:#fff;padding:12px;border-radius:8px;width:320px}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Timetable</h1>
-    <div class="controls">
-      <button id="exportBtn">Export JSON</button>
-    </div>
-    <div id="timetable" role="region" aria-label="Weekly timetable"></div>
+  <div class="wrap layout">
+    <aside class="sidebar">
+      <h2>Manage</h2>
+      <button id="addClassBtn">+ Add Class</button>
+      <button id="addTeacherBtn">+ Add Teacher</button>
+      <button id="addRoomBtn">+ Add Room</button>
+      <button id="addGroupBtn">+ Add Group</button>
+      <div style="margin-top:12px">
+        <strong>Config</strong>
+        <button id="saveConfigBtn">Save master_config</button>
+        <button id="restoreConfigBtn">Restore master_config</button>
+      </div>
+      <div style="margin-top:12px">
+        <strong>Saves</strong>
+        <button id="quickSaveBtn">Quick Save</button>
+        <button id="listSavesBtn">List Saves (console)</button>
+      </div>
+    </aside>
+    <main class="main">
+      <h1>Timetable</h1>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+        <div>
+          <label><input type="radio" name="viewMode" value="teacher" checked> Teachers</label>
+          <label><input type="radio" name="viewMode" value="group"> Groups</label>
+          <label><input type="radio" name="viewMode" value="room"> Rooms</label>
+        </div>
+        <div id="topTabs" style="display:flex;gap:6px;overflow:auto"></div>
+      </div>
+      <div class="controls">
+        <button id="exportBtn">Export JSON</button>
+      </div>
+      <div id="timetable" role="region" aria-label="Weekly timetable"></div>
+    </main>
   </div>
+
+  <!-- Modal for add/edit with tabs -->
+  <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-hidden="true">
+    <div class="modal" role="document">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="tabs" id="modalTabs"></div>
+        <div><button id="closeModalBtn">Close</button></div>
+      </div>
+      <div id="modalContent" class="tab-content"></div>
+    </div>
+  </div>
+
+  <!-- Assignment modal (replace prompt) -->
+  <div id="assignBackdrop" class="assign-modal-backdrop" role="dialog" aria-hidden="true">
+    <div class="assign-modal">
+      <h3>Assign Class</h3>
+      <div style="margin:8px 0">
+        <label>Class: <select id="assignClassSelect"></select></label>
+      </div>
+      <div id="assignConflict" style="color:#b00;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="assignCancelBtn">Cancel</button>
+        <button id="assignConfirmBtn">Assign</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="undoBanner" class="undo-banner"><span id="undoMsg"></span><button id="undoBtn">Undo</button></div>
 
   <script>
     // setup will be executed when the HTML file is loaded
     function setup(){
+      loadLastSaved();
       buildTimetable();
       document.getElementById('exportBtn').addEventListener('click', exportTimetable);
-      console.log('setup executed: timetable built');
+      console.log('setup executed: timetable built — master_config:', master_config);
     }
 
     function buildTimetable(){
-      const days = ['Time','Mon','Tue','Wed','Thu','Fri'];
-      const startHour = 8;
-      const endHour = 18;
+      // Build a slot-based timetable: rows = Slot 1..5, cols = Mon-Fri
+      const days = ['Mon','Tue','Wed','Thu','Fri'];
+      const slots = [1,2,3,4,5];
       const table = document.createElement('table');
       const thead = document.createElement('thead');
       const headRow = document.createElement('tr');
+      const emptyTh = document.createElement('th'); emptyTh.textContent='Slot'; headRow.appendChild(emptyTh);
       days.forEach(d=>{const th=document.createElement('th');th.textContent=d;headRow.appendChild(th)});
-      thead.appendChild(headRow);
-      table.appendChild(thead);
+      thead.appendChild(headRow); table.appendChild(thead);
 
       const tbody = document.createElement('tbody');
-      for(let h=startHour;h<endHour;h++){
+      slots.forEach(slot=>{
         const tr = document.createElement('tr');
-        const timeCell = document.createElement('td');
-        timeCell.textContent = h+':00';
-        tr.appendChild(timeCell);
-        for(let d=1;d<days.length;d++){
+        const slotCell = document.createElement('td'); slotCell.textContent = 'Slot '+slot; tr.appendChild(slotCell);
+        days.forEach((day,di)=>{
           const td = document.createElement('td');
-          td.contentEditable = 'true';
-          td.setAttribute('data-day', d);
-          td.setAttribute('data-hour', h);
+          td.setAttribute('data-day', di); td.setAttribute('data-slot', slot);
+          td.className = 'timetable-cell';
+          td.addEventListener('click', ()=> onCellClick(di, slot, td));
           tr.appendChild(td);
-        }
+        });
         tbody.appendChild(tr);
-      }
+      });
       table.appendChild(tbody);
       const container = document.getElementById('timetable');
       container.innerHTML = '';
       container.appendChild(table);
+      // initial render for default view
+      renderTopTabs();
+      renderTimetableForCurrentView();
+    }
+
+    // When a cell is clicked allow assigning a class to that timeslot
+    function onCellClick(day, slot, td){
+      // open assignment modal (in-UI chooser)
+      openAssignModal(day, slot, td);
+    }
+
+    // Assignment modal logic
+    let assignContext = null;
+    function openAssignModal(day, slot, td){
+      assignContext = {day, slot, td};
+      const sel = document.getElementById('assignClassSelect'); sel.innerHTML = '';
+      const classes = master_config.classes || {};
+      Object.keys(classes).forEach(id=>{ const o = document.createElement('option'); o.value=id; o.textContent = classes[id].title || ('Class '+id); sel.appendChild(o); });
+      document.getElementById('assignConflict').textContent = '';
+      document.getElementById('assignBackdrop').style.display = 'flex'; document.getElementById('assignBackdrop').setAttribute('aria-hidden','false');
+    }
+
+    document.getElementById('assignCancelBtn').addEventListener('click', ()=>{ document.getElementById('assignBackdrop').style.display='none'; assignContext=null; });
+    document.getElementById('assignConfirmBtn').addEventListener('click', ()=>{
+      const sel = document.getElementById('assignClassSelect'); if(!sel.value) return alert('Select a class');
+      const classId = sel.value; const cls = master_config.classes[classId]; if(!cls) return alert('Class not found');
+      const candidate = {day: assignContext.day, slot: assignContext.slot};
+      const conflicts = checkConflicts(classId, [candidate], cls.teacherId, cls.roomId, cls.groupIds);
+      if(conflicts.length){
+        document.getElementById('assignConflict').textContent = conflicts.map(c=>`${c.type}: ${c.name}`).join('; ');
+        return;
+      }
+      cls.timeSlots = cls.timeSlots || [];
+      if(!cls.timeSlots.some(ts=>ts.day===candidate.day && ts.slot===candidate.slot)) cls.timeSlots.push(candidate);
+      document.getElementById('assignBackdrop').style.display='none'; assignContext=null;
+      dispatchMasterConfigChanged(); renderTimetableForCurrentView();
+    });
+
+    // Undo banner helpers
+    let undoTimer = null;
+    function showUndoBanner(msg, undoFn, timeout=10000){
+      const banner = document.getElementById('undoBanner'); const undoMsg = document.getElementById('undoMsg'); const btn = document.getElementById('undoBtn');
+      undoMsg.textContent = msg; banner.style.display = 'flex';
+      btn.onclick = ()=>{ try{ undoFn(); }catch(e){}; banner.style.display='none'; if(undoTimer) clearTimeout(undoTimer); };
+      if(undoTimer) clearTimeout(undoTimer);
+      undoTimer = setTimeout(()=>{ banner.style.display='none'; }, timeout);
+    }
+
+    // Delete with undo from modal
+    function deleteRecord(key, id){
+      if(!confirm('Delete this record?')) return;
+      const prev = JSON.stringify(master_config);
+      delete master_config[key][id];
+      dispatchMasterConfigChanged(); renderModalContent(key);
+      showUndoBanner('Deleted record', ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); renderModalContent(key); });
     }
 
     function exportTimetable(){
@@ -92,6 +220,391 @@
       a.href = url; a.download = 'timetable.json'; document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     }
+
+      // --- Persistence utilities for master_config ---
+      let master_config = {};
+      const INDEX_KEY = 'index';
+      const LAST_QUICK_SAVE_KEY = 'last_quick_save';
+
+      function getIndex(){
+        try{
+          const raw = localStorage.getItem(INDEX_KEY);
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        }catch(e){
+          return [];
+        }
+      }
+
+      function setIndex(idx){
+        localStorage.setItem(INDEX_KEY, JSON.stringify(idx));
+      }
+
+      function saveMasterConfigWithTimecode(timecode){
+        if(typeof master_config === 'undefined' || master_config === null) master_config = {};
+        const key = `save_${timecode}`;
+        localStorage.setItem(key, JSON.stringify(master_config));
+        let idx = getIndex();
+        idx.push({timecode: timecode, key: key, ts: Date.now()});
+        if(idx.length > 5) idx = idx.slice(-5);
+        setIndex(idx);
+        console.log('Saved master_config under', key);
+        dispatchMasterConfigChanged();
+      }
+
+      function quickSave(){
+        const timecode = new Date().toISOString();
+        // allow label for quick save
+        const label = prompt('Quick save label (optional)');
+        // save pointer for fastest load (store object with config and label)
+        const quickObj = { config: master_config, label: label || ('quick '+timecode), ts: Date.now() };
+        localStorage.setItem(LAST_QUICK_SAVE_KEY, JSON.stringify(quickObj));
+        // also store a durable save under a timecode so it appears in the index
+        const key = `save_${timecode}`;
+        localStorage.setItem(key, JSON.stringify(master_config));
+        let idx = getIndex();
+        idx.push({timecode: timecode, key: key, ts: Date.now(), quick: true, label: quickObj.label});
+        if(idx.length > 5) idx = idx.slice(-5);
+        setIndex(idx);
+        console.log('Quick-saved master_config at', timecode);
+        dispatchMasterConfigChanged();
+      }
+
+      function loadLastSaved(){
+          // Prefer the last quick save if present (it may store label and config)
+          const quickRaw = localStorage.getItem(LAST_QUICK_SAVE_KEY);
+          if(quickRaw){
+            try{ const q = JSON.parse(quickRaw); if(q && q.config) { master_config = q.config; console.log('Loaded master_config from last_quick_save (with label)'); return; } if(typeof q === 'object'){ master_config = q; console.log('Loaded master_config from last_quick_save'); return; } }catch(e){}
+          }
+        const idx = getIndex();
+        if(idx.length === 0){ master_config = {}; console.log('No saved index found — master_config initialized blank'); return; }
+        const last = idx[idx.length-1];
+        const raw = localStorage.getItem(last.key);
+        if(raw){
+          try{ master_config = JSON.parse(raw); console.log('Loaded master_config from', last.key); return; }catch(e){}
+        }
+        master_config = {};
+        console.log('Failed to load last save; master_config blank');
+      }
+
+      function listSaves(){
+        return getIndex();
+      }
+
+      // Dispatch event when master_config changes so UI can reactively update
+      function dispatchMasterConfigChanged(){
+        try{ document.dispatchEvent(new CustomEvent('master_config_changed')); }catch(e){}
+      }
+
+      // Conflict detection: return array of conflict details (empty = no conflict)
+      function checkConflicts(classId, candidateSlots, teacherId, roomId, groupIds){
+        const conflicts = [];
+        const classes = master_config.classes || {};
+        for(const otherId of Object.keys(classes)){
+          if(otherId === classId) continue;
+          const other = classes[otherId];
+          const otherSlots = other.timeSlots || [];
+          for(const cs of candidateSlots){
+            for(const os of otherSlots){
+              if(cs.day===os.day && cs.slot===os.slot){
+                if(teacherId && other.teacherId && teacherId === other.teacherId){
+                  conflicts.push({type:'Teacher conflict', id: otherId, name: master_config.teachers[other.teacherId]?master_config.teachers[other.teacherId].name:other.teacherId, classId: otherId, classTitle: other.title});
+                }
+                if(roomId && other.roomId && roomId === other.roomId){
+                  conflicts.push({type:'Room conflict', id: otherId, name: master_config.rooms[other.roomId]?master_config.rooms[other.roomId].name:other.roomId, classId: otherId, classTitle: other.title});
+                }
+                if(Array.isArray(groupIds) && Array.isArray(other.groupIds)){
+                  for(const g of groupIds) if(other.groupIds.includes(g)){
+                    conflicts.push({type:'Group conflict', groupId: g, groupName: master_config.groups[g]?master_config.groups[g].name:g, classId: otherId, classTitle: other.title});
+                  }
+                }
+              }
+            }
+          }
+        }
+        // dedupe by classId+type
+        const keySet = new Set(); const dedup = [];
+        conflicts.forEach(c=>{ const k = `${c.classId}|${c.type}|${c.groupId||''}`; if(!keySet.has(k)){ keySet.add(k); dedup.push(c); }});
+        return dedup;
+      }
+
+      // --- Master config structure initialization ---
+      if(!master_config || typeof master_config !== 'object') master_config = {};
+      master_config.classes = master_config.classes || {};
+      master_config.teachers = master_config.teachers || {};
+      master_config.rooms = master_config.rooms || {};
+      master_config.groups = master_config.groups || {};
+
+      // --- UI: sidebar, modal, add/edit logic ---
+      function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+
+      function openModal(tabKey){
+        const backdrop = document.getElementById('modalBackdrop');
+        backdrop.style.display = 'flex'; backdrop.setAttribute('aria-hidden','false');
+        renderModalTabs(tabKey);
+        renderModalContent(tabKey);
+      }
+
+      function closeModal(){
+        const backdrop = document.getElementById('modalBackdrop');
+        backdrop.style.display = 'none'; backdrop.setAttribute('aria-hidden','true');
+      }
+
+      function renderModalTabs(activeKey){
+        const tabs = [{k:'classes',n:'Classes'},{k:'teachers',n:'Teachers'},{k:'rooms',n:'Rooms'},{k:'groups',n:'Groups'}];
+        const container = document.getElementById('modalTabs'); container.innerHTML = '';
+        tabs.forEach(t=>{
+          const btn = document.createElement('div'); btn.className = 'tab' + (t.k===activeKey? ' active':''); btn.textContent = t.n;
+          btn.addEventListener('click', ()=>{ renderModalTabs(t.k); renderModalContent(t.k); });
+          container.appendChild(btn);
+        });
+      }
+
+      function renderModalContent(key){
+        const content = document.getElementById('modalContent'); content.innerHTML = '';
+        // list existing records with edit buttons
+        const records = master_config[key] || {};
+        const list = document.createElement('div');
+        Object.keys(records).forEach(id=>{
+          const rec = records[id];
+          const row = document.createElement('div'); row.className='record';
+          const meta = document.createElement('div'); meta.className='meta';
+            if(key==='classes') meta.textContent = (rec.title||'Untitled') + ' — ' + (rec.class_code||'');
+            else meta.textContent = rec.name || ('#'+id);
+            const actions = document.createElement('div');
+            const edit = document.createElement('button'); edit.textContent='Edit';
+            edit.addEventListener('click', ()=> openEditForm(key,id));
+            const del = document.createElement('button'); del.textContent='Delete'; del.style.marginLeft='6px'; del.addEventListener('click', ()=> deleteRecord(key,id));
+            actions.appendChild(edit); actions.appendChild(del);
+          row.appendChild(meta); row.appendChild(actions); list.appendChild(row);
+        });
+        content.appendChild(list);
+
+        // Add form for new record
+        const form = document.createElement('div'); form.style.marginTop='8px';
+        form.appendChild(renderFormForKey(key));
+        content.appendChild(form);
+
+        // Listen for master_config changes to update selects/checkboxes live
+        function updateLive(){
+          // if classes form present, rebuild it
+          const currForm = document.querySelector('#modalContent .title-input');
+          if(currForm){
+            // re-render the modal content to refresh selects/checkboxes while preserving any inputs if possible
+            // simple approach: re-render completely
+            renderModalContent(key);
+          }
+        }
+        // remove previous listener to avoid duplicates
+        document.removeEventListener('master_config_changed', updateLive);
+        document.addEventListener('master_config_changed', updateLive);
+      }
+
+      function renderFormForKey(key, editId){
+        const wrapper = document.createElement('div');
+        const hiddenId = document.createElement('input'); hiddenId.type='hidden'; hiddenId.className='record-id';
+        if(editId) hiddenId.value = editId;
+        wrapper.appendChild(hiddenId);
+        if(key==='teachers' || key==='rooms' || key==='groups'){
+          const label = document.createElement('div'); label.textContent = (key==='teachers')? 'Teacher name:' : (key==='rooms')? 'Room name:' : 'Group name:';
+          const input = document.createElement('input'); input.className='name-input'; input.style.width='60%';
+          if(editId) input.value = master_config[key][editId].name || '';
+          wrapper.appendChild(label); wrapper.appendChild(input);
+        }
+        if(key==='classes'){
+          // title, teacher dropdown, room dropdown, group checkboxes
+          const titleRow = document.createElement('div'); titleRow.className='form-row';
+          const titleLabel = document.createElement('div'); titleLabel.textContent='Title:'; const titleInput = document.createElement('input'); titleInput.className='title-input'; titleInput.style.flex='1';
+          if(editId) titleInput.value = master_config.classes[editId].title || '';
+          titleRow.appendChild(titleLabel); titleRow.appendChild(titleInput); wrapper.appendChild(titleRow);
+
+          const teacherRow = document.createElement('div'); teacherRow.className='form-row'; const teacherLabel = document.createElement('div'); teacherLabel.textContent='Teacher:';
+          const teacherSelect = document.createElement('select'); teacherSelect.className='teacher-select';
+          const emptyOpt = document.createElement('option'); emptyOpt.value=''; emptyOpt.textContent='(none)'; teacherSelect.appendChild(emptyOpt);
+          Object.keys(master_config.teachers).forEach(tid=>{ const o=document.createElement('option'); o.value=tid; o.textContent=master_config.teachers[tid].name; teacherSelect.appendChild(o); });
+          if(editId) teacherSelect.value = master_config.classes[editId].teacherId || '';
+          teacherRow.appendChild(teacherLabel); teacherRow.appendChild(teacherSelect); wrapper.appendChild(teacherRow);
+
+          const roomRow = document.createElement('div'); roomRow.className='form-row'; const roomLabel = document.createElement('div'); roomLabel.textContent='Room:';
+          const roomSelect = document.createElement('select'); roomSelect.className='room-select';
+          const emptyR = document.createElement('option'); emptyR.value=''; emptyR.textContent='(none)'; roomSelect.appendChild(emptyR);
+          Object.keys(master_config.rooms).forEach(rid=>{ const o=document.createElement('option'); o.value=rid; o.textContent=master_config.rooms[rid].name; roomSelect.appendChild(o); });
+          if(editId) roomSelect.value = master_config.classes[editId].roomId || '';
+          roomRow.appendChild(roomLabel); roomRow.appendChild(roomSelect); wrapper.appendChild(roomRow);
+
+          const groupsRow = document.createElement('div'); groupsRow.className='form-row'; const groupsLabel = document.createElement('div'); groupsLabel.textContent='Groups:';
+          const groupsWrap = document.createElement('div'); groupsWrap.style.display='flex'; groupsWrap.style.flexDirection='column';
+          Object.keys(master_config.groups).forEach(gid=>{
+            const cbRow = document.createElement('label'); cbRow.style.display='flex'; cbRow.style.alignItems='center';
+            const cb = document.createElement('input'); cb.type='checkbox'; cb.value=gid; cb.className='group-checkbox';
+            if(editId && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) cb.checked=true;
+            cbRow.appendChild(cb); cbRow.appendChild(document.createTextNode(' ' + (master_config.groups[gid].name||'Group')));
+            groupsWrap.appendChild(cbRow);
+          });
+          groupsRow.appendChild(groupsLabel); groupsRow.appendChild(groupsWrap); wrapper.appendChild(groupsRow);
+          // timeslot selector: 5 slots x Mon-Fri checkboxes
+          const tsRow = document.createElement('div'); tsRow.className='form-row'; const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots:';
+          const tsWrap = document.createElement('div'); tsWrap.style.display='grid'; tsWrap.style.gridTemplateColumns='repeat(6,auto)'; tsWrap.style.gap='6px';
+          // header
+          tsWrap.appendChild(document.createElement('div'));
+          ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{ const h=document.createElement('div'); h.style.fontWeight='600'; h.textContent=d; tsWrap.appendChild(h); });
+          for(let s=1;s<=5;s++){
+            const slotLabel = document.createElement('div'); slotLabel.textContent='Slot '+s; tsWrap.appendChild(slotLabel);
+            for(let d=0;d<5;d++){
+              const cb = document.createElement('input'); cb.type='checkbox'; cb.className='timeslot-checkbox'; cb.value = d+'_'+s;
+              if(editId){ const existing = master_config.classes[editId].timeSlots || []; if(existing.some(ts=>ts.day===d && ts.slot===s)) cb.checked=true; }
+              tsWrap.appendChild(cb);
+            }
+          }
+          tsRow.appendChild(tsLabel); tsRow.appendChild(tsWrap); wrapper.appendChild(tsRow);
+        }
+
+        const btnRow = document.createElement('div'); btnRow.style.marginTop='8px';
+        const addBtn = document.createElement('button'); addBtn.textContent = editId? 'Save':'Add';
+        addBtn.addEventListener('click', ()=> saveFormKey(key, wrapper));
+        btnRow.appendChild(addBtn);
+        wrapper.appendChild(btnRow);
+        return wrapper;
+      }
+
+      function openEditForm(key,id){
+        // re-render tabs/content with edit form
+        renderModalTabs(key);
+        const content = document.getElementById('modalContent'); content.innerHTML='';
+        const list = document.createElement('div');
+        // show existing records (same as before)
+        const records = master_config[key] || {};
+        Object.keys(records).forEach(rid=>{
+          const row = document.createElement('div'); row.className='record';
+          const meta = document.createElement('div'); meta.className='meta';
+          meta.textContent = (key==='classes')? (records[rid].title||'Untitled') : (records[rid].name||'#'+rid);
+          row.appendChild(meta); list.appendChild(row);
+        });
+        content.appendChild(list);
+        // attach edit form
+        const form = renderFormForKey(key, id);
+        content.appendChild(form);
+      }
+
+      function saveFormKey(key, wrapper){
+        const idInput = wrapper.querySelector('.record-id'); const editId = idInput && idInput.value ? idInput.value : null;
+        if(key==='teachers' || key==='rooms' || key==='groups'){
+          const name = wrapper.querySelector('.name-input').value.trim(); if(!name) return alert('Name required');
+          // uniqueness check
+          const existing = Object.keys(master_config[key]||{}).find(i=> master_config[key][i].name === name && i !== editId);
+          if(existing) return alert('Name already exists');
+          const id = editId || uid(key);
+          master_config[key][id] = { name };
+          dispatchMasterConfigChanged();
+        } else if(key==='classes'){
+          const title = wrapper.querySelector('.title-input').value.trim();
+          if(!title) return alert('Class title required');
+          // class title uniqueness
+          const existingClass = Object.keys(master_config.classes||{}).find(i=> master_config.classes[i].title === title && i !== editId);
+          if(existingClass) return alert('Class title already exists');
+          const teacherId = wrapper.querySelector('.teacher-select').value || '';
+          const roomId = wrapper.querySelector('.room-select').value || '';
+          const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
+          const groupIds = groupCheckboxes.filter(cb=>cb.checked).map(cb=>cb.value);
+          const id = editId || uid('class');
+          // prepare candidate slots from any checkboxes in form (if present)
+          const slotCheckboxes = wrapper.querySelectorAll('.timeslot-checkbox');
+          const candidateSlots = [];
+          slotCheckboxes.forEach(cb=>{ if(cb.checked){ const parts = cb.value.split('_'); candidateSlots.push({day: parseInt(parts[0],10), slot: parseInt(parts[1],10)}); }});
+          const conflicts = checkConflicts(id, candidateSlots, teacherId, roomId, groupIds);
+          if(conflicts.length){
+            const msg = conflicts.map(c=> (c.type + ': ' + (c.classTitle || c.name || c.groupName))).join('\n');
+            return alert('Conflict detected:\n' + msg);
+          }
+          master_config.classes[id] = { title, teacherId, roomId, groupIds, timeSlots: candidateSlots };
+          dispatchMasterConfigChanged();
+        }
+        // after save, re-render modal content for the same key so lists/forms update
+        renderModalContent(key);
+        console.log('Saved to master_config.', key, master_config[key]);
+      }
+
+      // Hook up sidebar buttons and modal close
+      document.getElementById('addClassBtn').addEventListener('click', ()=> openModal('classes'));
+      document.getElementById('addTeacherBtn').addEventListener('click', ()=> openModal('teachers'));
+      document.getElementById('addRoomBtn').addEventListener('click', ()=> openModal('rooms'));
+      document.getElementById('addGroupBtn').addEventListener('click', ()=> openModal('groups'));
+      document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+      document.getElementById('quickSaveBtn').addEventListener('click', ()=>{ quickSave(); alert('Quick saved'); });
+      document.getElementById('listSavesBtn').addEventListener('click', ()=>{ console.log('Saves index:', listSaves()); alert('Saves logged to console'); });
+      document.getElementById('saveConfigBtn').addEventListener('click', ()=>{
+        const label = prompt('Save label (optional)');
+        const timecode = new Date().toISOString();
+        saveMasterConfigWithTimecode(timecode);
+        // store label in index entry
+        const idx = getIndex(); if(idx.length){ idx[idx.length-1].label = label || ('save '+timecode); setIndex(idx); }
+        alert('Saved master_config');
+      });
+      document.getElementById('restoreConfigBtn').addEventListener('click', ()=>{
+        const idx = getIndex(); if(idx.length===0) return alert('No saves available');
+        const list = idx.map((e,i)=>`${i+1}. ${e.label||e.timecode} (${new Date(e.ts).toLocaleString()})`).join('\n');
+        const sel = prompt('Restore which save?\n'+list+'\nEnter number'); if(!sel) return; const n=parseInt(sel,10)-1; if(isNaN(n)||n<0||n>=idx.length) return alert('Invalid');
+        const entry = idx[n]; const raw = localStorage.getItem(entry.key); if(!raw) return alert('Save not found');
+        try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
+      });
+
+      // Re-populate class forms when modal opens so selects/checkboxes reflect latest master_config
+      document.getElementById('modalBackdrop').addEventListener('click', (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+
+      // rebuild modal tabs when master_config changes (simple approach: re-render on open)
+
+      // Top tabs rendering and timetable filtering
+      function renderTopTabs(){
+        const container = document.getElementById('topTabs'); container.innerHTML = '';
+        const modeEl = document.querySelector('input[name="viewMode"]:checked');
+        const mode = modeEl ? modeEl.value : 'teacher';
+        let items = [];
+        if(mode==='teacher') items = Object.keys(master_config.teachers||{}).map(id=>({id,name: master_config.teachers[id].name}));
+        if(mode==='group') items = Object.keys(master_config.groups||{}).map(id=>({id,name: master_config.groups[id].name}));
+        if(mode==='room') items = Object.keys(master_config.rooms||{}).map(id=>({id,name: master_config.rooms[id].name}));
+        if(items.length===0){ container.textContent = '(no items)'; return; }
+        items.forEach(it=>{
+          const b = document.createElement('button'); b.textContent = it.name || it.id; b.addEventListener('click', ()=>{ renderTimetableFor(mode, it.id); }); container.appendChild(b);
+        });
+      }
+
+      document.querySelectorAll('input[name="viewMode"]').forEach(r=> r.addEventListener('change', ()=>{ renderTopTabs(); renderTimetableForCurrentView(); }));
+
+      function renderTimetableForCurrentView(){
+        const modeEl = document.querySelector('input[name="viewMode"]:checked');
+        const mode = modeEl ? modeEl.value : 'teacher';
+        const items = (mode==='teacher'? Object.keys(master_config.teachers||{}): mode==='group'? Object.keys(master_config.groups||{}): Object.keys(master_config.rooms||{}));
+        if(items.length===0) return clearTimetable();
+        renderTimetableFor(mode, items[0]);
+      }
+
+      function clearTimetable(){
+        document.querySelectorAll('.timetable-cell').forEach(c=> c.innerHTML='');
+      }
+
+      function renderTimetableFor(mode, id){
+        clearTimetable();
+        const classes = master_config.classes || {};
+        Object.keys(classes).forEach(cid=>{
+          const cls = classes[cid];
+          const matches = (mode==='teacher' && cls.teacherId===id) || (mode==='room' && cls.roomId===id) || (mode==='group' && Array.isArray(cls.groupIds) && cls.groupIds.includes(id));
+          if(matches && Array.isArray(cls.timeSlots)){
+            cls.timeSlots.forEach(ts=>{
+              const selector = `.timetable-cell[data-day="${ts.day}"][data-slot="${ts.slot}"]`;
+              const cell = document.querySelector(selector);
+              if(cell){
+                const div = document.createElement('div'); div.textContent = cls.title || 'Untitled'; div.title = (`${cls.title||''}\nTeacher: ${master_config.teachers[cls.teacherId]?master_config.teachers[cls.teacherId].name:'(none)'}\nRoom: ${master_config.rooms[cls.roomId]?master_config.rooms[cls.roomId].name:'(none)'}`);
+                cell.appendChild(div);
+              }
+            });
+          }
+        });
+        renderTopTabs();
+      }
+
+      // update top tabs when master_config changes
+      document.addEventListener('master_config_changed', ()=>{ renderTopTabs(); renderTimetableForCurrentView(); });
+
 
     // run setup when loaded
     window.addEventListener('DOMContentLoaded', setup);
