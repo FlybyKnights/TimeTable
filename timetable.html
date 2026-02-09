@@ -599,10 +599,13 @@
         const content = document.getElementById('classEditorContent');
         const titleEl = document.getElementById('classEditorTitle');
         
-        const cls = master_config.classes[classId];
-        if(!cls) return alert('Class not found');
-        
-        titleEl.textContent = classId ? (cls.title || 'Edit Class') : 'New Class';
+        if(classId){
+          const cls = master_config.classes[classId];
+          if(!cls) return alert('Class not found');
+          titleEl.textContent = cls.title || 'Edit Class';
+        } else {
+          titleEl.textContent = 'New Class';
+        }
         
         backdrop.style.display = 'flex';
         backdrop.setAttribute('aria-hidden', 'false');
@@ -729,7 +732,7 @@
             cell.setAttribute('data-slot', slot);
             
             // Check if this slot is selected for this class
-            const isSelected = editId && master_config.classes[editId].timeSlots && 
+            const isSelected = editId && master_config.classes[editId] && master_config.classes[editId].timeSlots && 
               master_config.classes[editId].timeSlots.some(ts => ts.day === day && ts.slot === slot);
             
             // Get current selections for conflict checking
@@ -758,7 +761,10 @@
             
             // Click handler to toggle assignment
             cell.addEventListener('click', () => {
-              if(!editId) return alert('Please save the class first');
+              if(!editId) {
+                alert('Please save the class first before assigning timeslots');
+                return;
+              }
               const cls = master_config.classes[editId];
               cls.timeSlots = cls.timeSlots || [];
               const idx = cls.timeSlots.findIndex(ts => ts.day === day && ts.slot === slot);
@@ -815,6 +821,11 @@
         btnRow.style.display = 'flex';
         btnRow.style.gap = '8px';
         
+        const refreshBtn = document.createElement('button');
+        refreshBtn.innerHTML = '<span class="icon">🔄</span> Refresh Conflicts';
+        refreshBtn.addEventListener('click', () => renderClassEditorForm(editId));
+        btnRow.appendChild(refreshBtn);
+        
         const saveBtn = document.createElement('button');
         saveBtn.innerHTML = '<span class="icon">💾</span> Save Class';
         saveBtn.addEventListener('click', () => saveClassFromEditor(editId, wrapper));
@@ -834,12 +845,6 @@
         }
         
         wrapper.appendChild(btnRow);
-        
-        // Add change listeners to update table when selections change
-        teacherSelect.addEventListener('change', () => renderClassEditorForm(editId));
-        roomSelect.addEventListener('change', () => renderClassEditorForm(editId));
-        const allGroupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
-        allGroupCheckboxes.forEach(cb => cb.addEventListener('change', () => renderClassEditorForm(editId)));
         
         content.appendChild(wrapper);
       }
@@ -861,7 +866,7 @@
         
         const id = editId || uid('class');
         
-        // Preserve existing timeslots if editing
+        // Preserve existing timeslots if editing, otherwise start with empty array
         const timeSlots = editId && master_config.classes[editId] ? 
           (master_config.classes[editId].timeSlots || []) : [];
         
@@ -874,8 +879,14 @@
         };
         
         dispatchMasterConfigChanged();
-        renderClassEditorForm(id);
-        alert('Class saved successfully!');
+        
+        // If this was a new class, re-render with the new ID so timeslots can be assigned
+        if(!editId){
+          alert('Class created! Now you can assign timeslots.');
+          renderClassEditorForm(id);
+        } else {
+          alert('Class saved successfully!');
+        }
       }
 
       function renderModalTabs(activeKey){
@@ -1300,7 +1311,6 @@
             });
           }
         });
-        renderTopTabs();
       }
 
       // update top tabs when master_config changes
