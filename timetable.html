@@ -236,9 +236,6 @@
 <body>
   <div class="wrap layout">
     <aside class="sidebar">
-      <h2>Manage</h2>
-      <button id="addClassBtn">+ Add Class</button>
-      <button id="addConfigBtn">+ Configuration</button>
       <h2><span class="icon">⚙️</span> Manage</h2>
       <button id="newClassBtn"><span class="icon">➕</span> New Class</button>
       <button id="settingsBtn"><span class="icon">⚙️</span> Settings</button>
@@ -1136,124 +1133,6 @@
             groupsWrap.appendChild(cbRow);
           });
           groupsRow.appendChild(groupsLabel); groupsRow.appendChild(groupsWrap); wrapper.appendChild(groupsRow);
-          // timeslot selector: interactive mini-timetable
-          const tsRow = document.createElement('div'); tsRow.className='form-row'; tsRow.style.flexDirection='column'; tsRow.style.alignItems='flex-start';
-          const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots (click to select/unselect):'; tsLabel.style.marginBottom='8px'; tsLabel.style.fontWeight='600';
-          tsRow.appendChild(tsLabel);
-          
-          // Create mini timetable
-          const miniTable = document.createElement('table'); miniTable.style.borderCollapse='collapse'; miniTable.style.fontSize='12px';
-          const miniHead = document.createElement('thead');
-          const miniHeadRow = document.createElement('tr');
-          const emptyHeader = document.createElement('th'); emptyHeader.textContent=''; emptyHeader.style.border='1px solid #ccc'; emptyHeader.style.padding='4px'; emptyHeader.style.background='#f3f3f3';
-          miniHeadRow.appendChild(emptyHeader);
-          ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{
-            const th=document.createElement('th'); th.textContent=d; th.style.border='1px solid #ccc'; th.style.padding='4px'; th.style.background='#f3f3f3'; th.style.textAlign='center';
-            miniHeadRow.appendChild(th);
-          });
-          miniHead.appendChild(miniHeadRow); miniTable.appendChild(miniHead);
-          
-          const miniBody = document.createElement('tbody');
-          const selectedSlots = new Set();
-          if(editId && master_config.classes && master_config.classes[editId]){ 
-            const existing = master_config.classes[editId].timeSlots || []; 
-            existing.forEach(ts=> selectedSlots.add(ts.day+'_'+ts.slot));
-          }
-          
-          // timeslot selector: 5 slots x Mon-Fri checkboxes with conflict highlighting
-          const tsRow = document.createElement('div'); tsRow.className='form-row'; const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots:';
-          const tsWrap = document.createElement('div'); tsWrap.style.display='grid'; tsWrap.style.gridTemplateColumns='repeat(6,auto)'; tsWrap.style.gap='6px';
-          // header
-          tsWrap.appendChild(document.createElement('div'));
-          ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{ const h=document.createElement('div'); h.style.fontWeight='600'; h.textContent=d; tsWrap.appendChild(h); });
-          
-          // Get teacher and room selections for conflict checking
-          const selectedTeacherId = wrapper.querySelector('.teacher-select')?.value || '';
-          const selectedRoomId = wrapper.querySelector('.room-select')?.value || '';
-          const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
-          const selectedGroupIds = groupCheckboxes.filter(cb=>cb.checked).map(cb=>cb.value);
-          
-          for(let s=1;s<=5;s++){
-            const tr = document.createElement('tr');
-            const slotLabel = document.createElement('td'); slotLabel.textContent='Slot '+s; slotLabel.style.border='1px solid #ccc'; slotLabel.style.padding='4px'; slotLabel.style.fontWeight='600'; slotLabel.style.background='#f9f9f9';
-            tr.appendChild(slotLabel);
-            for(let d=0;d<5;d++){
-              const td = document.createElement('td'); 
-              td.style.border='1px solid #ccc'; 
-              td.style.padding='8px 12px'; 
-              td.style.textAlign='center';
-              td.style.cursor='pointer';
-              td.style.minWidth='50px';
-              td.dataset.day = d;
-              td.dataset.slot = s;
-              td.className = 'timeslot-cell';
-              
-              if(selectedSlots.has(d+'_'+s)){
-                td.style.background='#4CAF50';
-                td.style.color='white';
-                td.textContent='✓';
-                td.dataset.selected='true';
-              } else {
-                td.style.background='white';
-                td.textContent='';
-                td.dataset.selected='false';
-              }
-              
-              td.addEventListener('click', ()=>{
-                if(td.dataset.selected === 'true'){
-                  td.dataset.selected = 'false';
-                  td.style.background = 'white';
-                  td.style.color = 'black';
-                  td.textContent = '';
-                } else {
-                  td.dataset.selected = 'true';
-                  td.style.background = '#4CAF50';
-                  td.style.color = 'white';
-                  td.textContent = '✓';
-                }
-              });
-              
-              tr.appendChild(td);
-              const cellWrap = document.createElement('div'); cellWrap.style.position='relative';
-              const cb = document.createElement('input'); cb.type='checkbox'; cb.className='timeslot-checkbox'; cb.value = d+'_'+s;
-              if(editId){ const existing = master_config.classes[editId].timeSlots || []; if(existing.some(ts=>ts.day===d && ts.slot===s)) cb.checked=true; }
-              
-              // Check for conflicts at this timeslot
-              const conflicts = checkConflicts(editId || 'temp', [{day:d, slot:s}], selectedTeacherId, selectedRoomId, selectedGroupIds);
-              if(conflicts.length > 0){
-                cellWrap.style.backgroundColor = '#ffcccc';
-                cellWrap.title = 'Conflicts: ' + conflicts.map(c=>`${c.type} (${c.classTitle || c.name || c.groupName})`).join(', ');
-              } else {
-                cellWrap.style.backgroundColor = '#ccffcc';
-                cellWrap.title = 'Available';
-              }
-              
-              cellWrap.appendChild(cb);
-              tsWrap.appendChild(cellWrap);
-            }
-            miniBody.appendChild(tr);
-          }
-          miniTable.appendChild(miniBody);
-          tsRow.appendChild(miniTable);
-          wrapper.appendChild(tsRow);
-          tsRow.appendChild(tsLabel); tsRow.appendChild(tsWrap); wrapper.appendChild(tsRow);
-          
-          // Add legend for timeslot colors
-          const legend = document.createElement('div'); legend.className='timeslot-legend';
-          const available = document.createElement('div'); available.className='timeslot-legend-item';
-          const availBox = document.createElement('div'); availBox.className='timeslot-legend-box'; availBox.style.backgroundColor='#ccffcc';
-          available.appendChild(availBox); available.appendChild(document.createTextNode('Available'));
-          const conflict = document.createElement('div'); conflict.className='timeslot-legend-item';
-          const conflictBox = document.createElement('div'); conflictBox.className='timeslot-legend-box'; conflictBox.style.backgroundColor='#ffcccc';
-          conflict.appendChild(conflictBox); conflict.appendChild(document.createTextNode('Conflict'));
-          legend.appendChild(available); legend.appendChild(conflict);
-          wrapper.appendChild(legend);
-          
-          // Add change listeners to teacher, room, and group selections to update conflict highlighting
-          teacherSelect.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId));
-          roomSelect.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId));
-          const allGroupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
-          allGroupCheckboxes.forEach(cb => cb.addEventListener('change', ()=> updateTimeslotConflictHighlighting(wrapper, editId)));
         }
 
         const btnRow = document.createElement('div'); btnRow.style.marginTop='8px';
@@ -1370,8 +1249,8 @@
       }
 
       // Hook up sidebar buttons and modal close
-      document.getElementById('addClassBtn').addEventListener('click', ()=> openModal('classes'));
-      document.getElementById('addConfigBtn').addEventListener('click', ()=> openModal('configuration'));
+      document.getElementById('newClassBtn').addEventListener('click', ()=> openClassEditor(null));
+      document.getElementById('settingsBtn').addEventListener('click', ()=> openModal('configuration'));
       document.getElementById('closeModalBtn').addEventListener('click', closeModal);
       document.getElementById('closeClassEditorBtn').addEventListener('click', closeClassEditor);
       document.getElementById('quickSaveBtn').addEventListener('click', ()=>{ quickSave(); alert('Quick saved'); });
