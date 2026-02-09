@@ -2,6 +2,11 @@ AI change log
 ----------------
 (Append entries here following AI_INSTRUCTIONS.md)
 
+2026-02-09T16:04:00Z | GitHub Copilot Agent
+Summary: Resolved merge conflicts from multiple merges that created duplicate UI elements. Removed duplicate "Manage" header and old button elements (addClassBtn, addConfigBtn) in favor of newer versions with emoji icons (newClassBtn, settingsBtn). Fixed JavaScript error caused by duplicate tsRow variable declaration from conflicting merge. Removed ~120 lines of duplicate/conflicting timeslot selector code from old merge. Validated all functionality including test data generation (5 teachers, 7 groups, 11 rooms), class creation, timeslot assignment, and conflict detection for teachers, rooms, and groups. Confirmed the most recent merge implementations take priority and work correctly.
+Request:
+Multiple merges have created conflics. Scan thru them and resolve them so that the most recent merge takes priorty. Run the standards test and validate all functionality for multiple classes, rooms, and Teachers.
+---
 2026-02-09T15:02:29Z | GitHub Copilot Workspace
 Summary: Added test data generator and visual conflict detection system for the timetable. Implemented color-coded timeslot grid showing conflicts in red (teacher/room/group conflicts) and available slots in green. Added button to generate test data with 5 teachers, 7 groups, 11 rooms, and 6 subject classes. Enhanced the class editing form with real-time conflict highlighting and tooltips showing conflict details.
 Request:
