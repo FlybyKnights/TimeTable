@@ -54,9 +54,7 @@
     <aside class="sidebar">
       <h2>Manage</h2>
       <button id="addClassBtn">+ Add Class</button>
-      <button id="addTeacherBtn">+ Add Teacher</button>
-      <button id="addRoomBtn">+ Add Room</button>
-      <button id="addGroupBtn">+ Add Group</button>
+      <button id="addConfigBtn">+ Configuration</button>
       <div style="margin-top:12px">
         <strong>Config</strong>
         <button id="saveConfigBtn">Save master_config</button>
@@ -351,7 +349,7 @@
       }
 
       function renderModalTabs(activeKey){
-        const tabs = [{k:'classes',n:'Classes'},{k:'teachers',n:'Teachers'},{k:'rooms',n:'Rooms'},{k:'groups',n:'Groups'}];
+        const tabs = [{k:'classes',n:'Classes'},{k:'configuration',n:'Configuration'}];
         const container = document.getElementById('modalTabs'); container.innerHTML = '';
         tabs.forEach(t=>{
           const btn = document.createElement('div'); btn.className = 'tab' + (t.k===activeKey? ' active':''); btn.textContent = t.n;
@@ -362,6 +360,13 @@
 
       function renderModalContent(key){
         const content = document.getElementById('modalContent'); content.innerHTML = '';
+        
+        if(key === 'configuration'){
+          // Show teachers, rooms, and groups in separate sections
+          renderConfigurationTab(content);
+          return;
+        }
+        
         // list existing records with edit buttons
         const records = master_config[key] || {};
         const list = document.createElement('div');
@@ -398,6 +403,99 @@
         // remove previous listener to avoid duplicates
         document.removeEventListener('master_config_changed', updateLive);
         document.addEventListener('master_config_changed', updateLive);
+      }
+
+      function renderConfigurationTab(content){
+        // Teachers section
+        const teachersSection = document.createElement('div'); teachersSection.style.marginBottom='16px';
+        const teachersTitle = document.createElement('h3'); teachersTitle.textContent = 'Teachers'; teachersTitle.style.fontSize='14px'; teachersTitle.style.marginBottom='8px';
+        teachersSection.appendChild(teachersTitle);
+        renderConfigSection(teachersSection, 'teachers');
+        content.appendChild(teachersSection);
+
+        // Rooms section
+        const roomsSection = document.createElement('div'); roomsSection.style.marginBottom='16px';
+        const roomsTitle = document.createElement('h3'); roomsTitle.textContent = 'Rooms'; roomsTitle.style.fontSize='14px'; roomsTitle.style.marginBottom='8px';
+        roomsSection.appendChild(roomsTitle);
+        renderConfigSection(roomsSection, 'rooms');
+        content.appendChild(roomsSection);
+
+        // Groups section
+        const groupsSection = document.createElement('div'); groupsSection.style.marginBottom='16px';
+        const groupsTitle = document.createElement('h3'); groupsTitle.textContent = 'Groups'; groupsTitle.style.fontSize='14px'; groupsTitle.style.marginBottom='8px';
+        groupsSection.appendChild(groupsTitle);
+        renderConfigSection(groupsSection, 'groups');
+        content.appendChild(groupsSection);
+      }
+
+      function renderConfigSection(container, key){
+        const records = master_config[key] || {};
+        const list = document.createElement('div');
+        Object.keys(records).forEach(id=>{
+          const rec = records[id];
+          const row = document.createElement('div'); row.className='record';
+          const meta = document.createElement('div'); meta.className='meta';
+          meta.textContent = rec.name || ('#'+id);
+          const actions = document.createElement('div');
+          const edit = document.createElement('button'); edit.textContent='Edit';
+          edit.addEventListener('click', ()=> openEditFormInConfig(key,id));
+          const del = document.createElement('button'); del.textContent='Delete'; del.style.marginLeft='6px'; 
+          del.addEventListener('click', ()=> deleteRecordWithProtection(key,id));
+          actions.appendChild(edit); actions.appendChild(del);
+          row.appendChild(meta); row.appendChild(actions); list.appendChild(row);
+        });
+        container.appendChild(list);
+
+        // Add form for new record
+        const form = document.createElement('div'); form.style.marginTop='8px';
+        form.appendChild(renderFormForKey(key));
+        container.appendChild(form);
+      }
+
+      function openEditFormInConfig(key, id){
+        // Re-render the configuration tab with edit form for specific item
+        const content = document.getElementById('modalContent'); content.innerHTML = '';
+        renderConfigurationTab(content);
+      }
+
+      function deleteRecordWithProtection(key, id){
+        // Check if the record is in use by any class
+        const classes = master_config.classes || {};
+        const inUse = [];
+        
+        if(key === 'teachers'){
+          Object.keys(classes).forEach(cid=>{
+            if(classes[cid].teacherId === id) inUse.push(classes[cid].title || 'Untitled');
+          });
+          if(inUse.length > 0){
+            return alert(`Cannot delete teacher. In use by classes:\n${inUse.join('\n')}`);
+          }
+        } else if(key === 'rooms'){
+          Object.keys(classes).forEach(cid=>{
+            if(classes[cid].roomId === id) inUse.push(classes[cid].title || 'Untitled');
+          });
+          if(inUse.length > 0){
+            return alert(`Cannot delete room. In use by classes:\n${inUse.join('\n')}`);
+          }
+        } else if(key === 'groups'){
+          Object.keys(classes).forEach(cid=>{
+            if(Array.isArray(classes[cid].groupIds) && classes[cid].groupIds.includes(id)){
+              inUse.push(classes[cid].title || 'Untitled');
+            }
+          });
+          if(inUse.length > 0){
+            return alert(`Cannot delete group. In use by classes:\n${inUse.join('\n')}`);
+          }
+        }
+        
+        // Proceed with deletion
+        if(!confirm('Delete this record?')) return;
+        const prev = JSON.stringify(master_config);
+        delete master_config[key][id];
+        dispatchMasterConfigChanged(); 
+        const content = document.getElementById('modalContent'); content.innerHTML = '';
+        renderConfigurationTab(content);
+        showUndoBanner('Deleted record', ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); const content = document.getElementById('modalContent'); content.innerHTML = ''; renderConfigurationTab(content); });
       }
 
       function renderFormForKey(key, editId){
@@ -442,21 +540,77 @@
             groupsWrap.appendChild(cbRow);
           });
           groupsRow.appendChild(groupsLabel); groupsRow.appendChild(groupsWrap); wrapper.appendChild(groupsRow);
-          // timeslot selector: 5 slots x Mon-Fri checkboxes
-          const tsRow = document.createElement('div'); tsRow.className='form-row'; const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots:';
-          const tsWrap = document.createElement('div'); tsWrap.style.display='grid'; tsWrap.style.gridTemplateColumns='repeat(6,auto)'; tsWrap.style.gap='6px';
-          // header
-          tsWrap.appendChild(document.createElement('div'));
-          ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{ const h=document.createElement('div'); h.style.fontWeight='600'; h.textContent=d; tsWrap.appendChild(h); });
-          for(let s=1;s<=5;s++){
-            const slotLabel = document.createElement('div'); slotLabel.textContent='Slot '+s; tsWrap.appendChild(slotLabel);
-            for(let d=0;d<5;d++){
-              const cb = document.createElement('input'); cb.type='checkbox'; cb.className='timeslot-checkbox'; cb.value = d+'_'+s;
-              if(editId){ const existing = master_config.classes[editId].timeSlots || []; if(existing.some(ts=>ts.day===d && ts.slot===s)) cb.checked=true; }
-              tsWrap.appendChild(cb);
-            }
+          // timeslot selector: interactive mini-timetable
+          const tsRow = document.createElement('div'); tsRow.className='form-row'; tsRow.style.flexDirection='column'; tsRow.style.alignItems='flex-start';
+          const tsLabel = document.createElement('div'); tsLabel.textContent='TimeSlots (click to select/unselect):'; tsLabel.style.marginBottom='8px'; tsLabel.style.fontWeight='600';
+          tsRow.appendChild(tsLabel);
+          
+          // Create mini timetable
+          const miniTable = document.createElement('table'); miniTable.style.borderCollapse='collapse'; miniTable.style.fontSize='12px';
+          const miniHead = document.createElement('thead');
+          const miniHeadRow = document.createElement('tr');
+          const emptyHeader = document.createElement('th'); emptyHeader.textContent=''; emptyHeader.style.border='1px solid #ccc'; emptyHeader.style.padding='4px'; emptyHeader.style.background='#f3f3f3';
+          miniHeadRow.appendChild(emptyHeader);
+          ['Mon','Tue','Wed','Thu','Fri'].forEach(d=>{
+            const th=document.createElement('th'); th.textContent=d; th.style.border='1px solid #ccc'; th.style.padding='4px'; th.style.background='#f3f3f3'; th.style.textAlign='center';
+            miniHeadRow.appendChild(th);
+          });
+          miniHead.appendChild(miniHeadRow); miniTable.appendChild(miniHead);
+          
+          const miniBody = document.createElement('tbody');
+          const selectedSlots = new Set();
+          if(editId){ 
+            const existing = master_config.classes[editId].timeSlots || []; 
+            existing.forEach(ts=> selectedSlots.add(ts.day+'_'+ts.slot));
           }
-          tsRow.appendChild(tsLabel); tsRow.appendChild(tsWrap); wrapper.appendChild(tsRow);
+          
+          for(let s=1;s<=5;s++){
+            const tr = document.createElement('tr');
+            const slotLabel = document.createElement('td'); slotLabel.textContent='Slot '+s; slotLabel.style.border='1px solid #ccc'; slotLabel.style.padding='4px'; slotLabel.style.fontWeight='600'; slotLabel.style.background='#f9f9f9';
+            tr.appendChild(slotLabel);
+            for(let d=0;d<5;d++){
+              const td = document.createElement('td'); 
+              td.style.border='1px solid #ccc'; 
+              td.style.padding='8px 12px'; 
+              td.style.textAlign='center';
+              td.style.cursor='pointer';
+              td.style.minWidth='50px';
+              td.dataset.day = d;
+              td.dataset.slot = s;
+              td.className = 'timeslot-cell';
+              
+              if(selectedSlots.has(d+'_'+s)){
+                td.style.background='#4CAF50';
+                td.style.color='white';
+                td.textContent='✓';
+                td.dataset.selected='true';
+              } else {
+                td.style.background='white';
+                td.textContent='';
+                td.dataset.selected='false';
+              }
+              
+              td.addEventListener('click', ()=>{
+                if(td.dataset.selected === 'true'){
+                  td.dataset.selected = 'false';
+                  td.style.background = 'white';
+                  td.style.color = 'black';
+                  td.textContent = '';
+                } else {
+                  td.dataset.selected = 'true';
+                  td.style.background = '#4CAF50';
+                  td.style.color = 'white';
+                  td.textContent = '✓';
+                }
+              });
+              
+              tr.appendChild(td);
+            }
+            miniBody.appendChild(tr);
+          }
+          miniTable.appendChild(miniBody);
+          tsRow.appendChild(miniTable);
+          wrapper.appendChild(tsRow);
         }
 
         const btnRow = document.createElement('div'); btnRow.style.marginTop='8px';
@@ -507,10 +661,14 @@
           const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
           const groupIds = groupCheckboxes.filter(cb=>cb.checked).map(cb=>cb.value);
           const id = editId || uid('class');
-          // prepare candidate slots from any checkboxes in form (if present)
-          const slotCheckboxes = wrapper.querySelectorAll('.timeslot-checkbox');
+          // prepare candidate slots from mini-timetable cells
+          const timeslotCells = wrapper.querySelectorAll('.timeslot-cell');
           const candidateSlots = [];
-          slotCheckboxes.forEach(cb=>{ if(cb.checked){ const parts = cb.value.split('_'); candidateSlots.push({day: parseInt(parts[0],10), slot: parseInt(parts[1],10)}); }});
+          timeslotCells.forEach(cell=>{ 
+            if(cell.dataset.selected === 'true'){ 
+              candidateSlots.push({day: parseInt(cell.dataset.day,10), slot: parseInt(cell.dataset.slot,10)}); 
+            }
+          });
           const conflicts = checkConflicts(id, candidateSlots, teacherId, roomId, groupIds);
           if(conflicts.length){
             const msg = conflicts.map(c=> (c.type + ': ' + (c.classTitle || c.name || c.groupName))).join('\n');
@@ -526,9 +684,7 @@
 
       // Hook up sidebar buttons and modal close
       document.getElementById('addClassBtn').addEventListener('click', ()=> openModal('classes'));
-      document.getElementById('addTeacherBtn').addEventListener('click', ()=> openModal('teachers'));
-      document.getElementById('addRoomBtn').addEventListener('click', ()=> openModal('rooms'));
-      document.getElementById('addGroupBtn').addEventListener('click', ()=> openModal('groups'));
+      document.getElementById('addConfigBtn').addEventListener('click', ()=> openModal('configuration'));
       document.getElementById('closeModalBtn').addEventListener('click', closeModal);
       document.getElementById('quickSaveBtn').addEventListener('click', ()=>{ quickSave(); alert('Quick saved'); });
       document.getElementById('listSavesBtn').addEventListener('click', ()=>{ console.log('Saves index:', listSaves()); alert('Saves logged to console'); });
