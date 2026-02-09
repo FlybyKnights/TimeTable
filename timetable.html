@@ -103,7 +103,7 @@
       font-size:13px;
     }
     .nested-tab:hover{background:var(--accent);color:var(--text-primary)}
-    .nested-tab.active{background:#e94560;color:var(--text-primary);font-weight:600}
+    .nested-tab.active{background:var(--accent);color:var(--text-primary);font-weight:600}
     .tab-content{
       border:1px solid var(--border);
       padding:12px;
@@ -762,7 +762,7 @@
             // Click handler to toggle assignment
             cell.addEventListener('click', () => {
               if(!editId) {
-                alert('Please save the class first before assigning timeslots');
+                alert('Please save the class first by clicking the Save Class button before assigning timeslots');
                 return;
               }
               const cls = master_config.classes[editId];
