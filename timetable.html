@@ -641,6 +641,8 @@
           const existing = Object.keys(master_config[key]||{}).find(i=> master_config[key][i].name === name && i !== editId);
           if(existing) return alert('Name already exists');
           const id = editId || uid(key);
+          // Ensure the key exists in master_config before assignment
+          if(!master_config[key]) master_config[key] = {};
           master_config[key][id] = { name };
           dispatchMasterConfigChanged();
         } else if(key==='classes'){
@@ -663,6 +665,8 @@
             const msg = conflicts.map(c=> (c.type + ': ' + (c.classTitle || c.name || c.groupName))).join('\n');
             return alert('Conflict detected:\n' + msg);
           }
+          // Ensure classes exists in master_config before assignment
+          if(!master_config.classes) master_config.classes = {};
           master_config.classes[id] = { title, teacherId, roomId, groupIds, timeSlots: candidateSlots };
           dispatchMasterConfigChanged();
         }
