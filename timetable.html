@@ -270,20 +270,45 @@
         dispatchMasterConfigChanged();
       }
 
+      function autoSave(){
+        // Silent save without prompting (for automatic saves on modal close)
+        const timecode = new Date().toISOString();
+        const label = 'auto '+timecode;
+        const quickObj = { config: master_config, label: label, ts: Date.now() };
+        localStorage.setItem(LAST_QUICK_SAVE_KEY, JSON.stringify(quickObj));
+        // also store a durable save under a timecode so it appears in the index
+        const key = `save_${timecode}`;
+        localStorage.setItem(key, JSON.stringify(master_config));
+        let idx = getIndex();
+        idx.push({timecode: timecode, key: key, ts: Date.now(), quick: true, label: label});
+        if(idx.length > 5) idx = idx.slice(-5);
+        setIndex(idx);
+        console.log('Auto-saved master_config at', timecode);
+      }
+
+      function ensureMasterConfigStructure(){
+        if(!master_config || typeof master_config !== 'object') master_config = {};
+        master_config.classes = master_config.classes || {};
+        master_config.teachers = master_config.teachers || {};
+        master_config.rooms = master_config.rooms || {};
+        master_config.groups = master_config.groups || {};
+      }
+
       function loadLastSaved(){
           // Prefer the last quick save if present (it may store label and config)
           const quickRaw = localStorage.getItem(LAST_QUICK_SAVE_KEY);
           if(quickRaw){
-            try{ const q = JSON.parse(quickRaw); if(q && q.config) { master_config = q.config; console.log('Loaded master_config from last_quick_save (with label)'); return; } if(typeof q === 'object'){ master_config = q; console.log('Loaded master_config from last_quick_save'); return; } }catch(e){}
+            try{ const q = JSON.parse(quickRaw); if(q && q.config) { master_config = q.config; ensureMasterConfigStructure(); console.log('Loaded master_config from last_quick_save (with label)'); return; } if(typeof q === 'object'){ master_config = q; ensureMasterConfigStructure(); console.log('Loaded master_config from last_quick_save'); return; } }catch(e){}
           }
         const idx = getIndex();
-        if(idx.length === 0){ master_config = {}; console.log('No saved index found — master_config initialized blank'); return; }
+        if(idx.length === 0){ master_config = {}; ensureMasterConfigStructure(); console.log('No saved index found — master_config initialized blank'); return; }
         const last = idx[idx.length-1];
         const raw = localStorage.getItem(last.key);
         if(raw){
-          try{ master_config = JSON.parse(raw); console.log('Loaded master_config from', last.key); return; }catch(e){}
+          try{ master_config = JSON.parse(raw); ensureMasterConfigStructure(); console.log('Loaded master_config from', last.key); return; }catch(e){}
         }
         master_config = {};
+        ensureMasterConfigStructure();
         console.log('Failed to load last save; master_config blank');
       }
 
@@ -329,11 +354,8 @@
       }
 
       // --- Master config structure initialization ---
-      if(!master_config || typeof master_config !== 'object') master_config = {};
-      master_config.classes = master_config.classes || {};
-      master_config.teachers = master_config.teachers || {};
-      master_config.rooms = master_config.rooms || {};
-      master_config.groups = master_config.groups || {};
+      // Note: structure is now initialized via ensureMasterConfigStructure() function
+
 
       // --- UI: sidebar, modal, add/edit logic ---
       function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
@@ -348,6 +370,9 @@
       function closeModal(){
         const backdrop = document.getElementById('modalBackdrop');
         backdrop.style.display = 'none'; backdrop.setAttribute('aria-hidden','true');
+        // Refresh timetable and perform auto-save when modal closes
+        renderTimetableForCurrentView();
+        autoSave();
       }
 
       function renderModalTabs(activeKey){
@@ -487,6 +512,7 @@
       }
 
       function saveFormKey(key, wrapper){
+        ensureMasterConfigStructure(); // Ensure structure exists before saving
         const idInput = wrapper.querySelector('.record-id'); const editId = idInput && idInput.value ? idInput.value : null;
         if(key==='teachers' || key==='rooms' || key==='groups'){
           const name = wrapper.querySelector('.name-input').value.trim(); if(!name) return alert('Name required');
