@@ -312,97 +312,253 @@
   </div>
 
   <script>
+    // ====== PERFORMANCE MONITORING INFRASTRUCTURE ======
+    const performanceMetrics = {
+      measurements: [],
+      enabled: true,
+      maxMeasurements: 1000 // Prevent unbounded memory growth
+    };
+
+    // Wrapper to measure function execution time
+    function measurePerformance(functionName, fn) {
+      if (!performanceMetrics.enabled) return fn();
+      
+      const startTime = performance.now();
+      const result = fn();
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      
+      performanceMetrics.measurements.push({
+        function: functionName,
+        duration: duration,
+        timestamp: Date.now()
+      });
+      
+      // Prevent unbounded memory growth - keep only last N measurements
+      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
+        performanceMetrics.measurements.shift();
+      }
+      
+      console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
+      
+      return result;
+    }
+
+    // Async version for async functions
+    async function measurePerformanceAsync(functionName, fn) {
+      if (!performanceMetrics.enabled) return await fn();
+      
+      const startTime = performance.now();
+      const result = await fn();
+      const endTime = performance.now();
+      const duration = endTime - startTime;
+      
+      performanceMetrics.measurements.push({
+        function: functionName,
+        duration: duration,
+        timestamp: Date.now()
+      });
+      
+      // Prevent unbounded memory growth - keep only last N measurements
+      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
+        performanceMetrics.measurements.shift();
+      }
+      
+      console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
+      
+      return result;
+    }
+
+    // Get performance summary
+    function getPerformanceSummary() {
+      const summary = {};
+      performanceMetrics.measurements.forEach(m => {
+        if (!summary[m.function]) {
+          summary[m.function] = { count: 0, total: 0, min: Infinity, max: -Infinity, calls: [] };
+        }
+        summary[m.function].count++;
+        summary[m.function].total += m.duration;
+        summary[m.function].min = Math.min(summary[m.function].min, m.duration);
+        summary[m.function].max = Math.max(summary[m.function].max, m.duration);
+        summary[m.function].calls.push(m.duration);
+      });
+      
+      Object.keys(summary).forEach(key => {
+        summary[key].avg = summary[key].total / summary[key].count;
+      });
+      
+      return summary;
+    }
+
+    // Log performance summary to console
+    function logPerformanceSummary() {
+      const summary = getPerformanceSummary();
+      console.group('📊 Performance Summary');
+      Object.entries(summary)
+        .sort((a, b) => b[1].total - a[1].total)
+        .forEach(([funcName, stats]) => {
+          console.log(`${funcName}:`);
+          console.log(`  Calls: ${stats.count}`);
+          console.log(`  Total: ${stats.total.toFixed(2)}ms`);
+          console.log(`  Avg: ${stats.avg.toFixed(2)}ms`);
+          console.log(`  Min: ${stats.min.toFixed(2)}ms`);
+          console.log(`  Max: ${stats.max.toFixed(2)}ms`);
+        });
+      console.groupEnd();
+    }
+
+    // ====== CACHING INFRASTRUCTURE ======
+    const cacheStore = {
+      domQueries: new Map(),
+      configLookups: new Map(),
+      computedValues: new Map()
+    };
+
+    // Cache DOM queries
+    function getCachedElement(selector) {
+      if (!cacheStore.domQueries.has(selector)) {
+        cacheStore.domQueries.set(selector, document.querySelector(selector));
+      }
+      return cacheStore.domQueries.get(selector);
+    }
+
+    // Cache multiple DOM queries
+    function getCachedElements(selector) {
+      const cacheKey = `all:${selector}`;
+      if (!cacheStore.domQueries.has(cacheKey)) {
+        cacheStore.domQueries.set(cacheKey, Array.from(document.querySelectorAll(selector)));
+      }
+      return cacheStore.domQueries.get(cacheKey);
+    }
+
+    // Clear DOM cache when structure changes
+    function clearDOMCache() {
+      cacheStore.domQueries.clear();
+    }
+
+    // Memoize expensive computations
+    function memoize(fn, keyGenerator) {
+      return function(...args) {
+        const key = keyGenerator ? keyGenerator(...args) : JSON.stringify(args);
+        if (!cacheStore.computedValues.has(key)) {
+          cacheStore.computedValues.set(key, fn(...args));
+        }
+        return cacheStore.computedValues.get(key);
+      };
+    }
+
+    // Clear memoization cache
+    function clearComputedCache() {
+      cacheStore.computedValues.clear();
+    }
+
+    // ====== MAIN SETUP FUNCTION ======
     // setup will be executed when the HTML file is loaded
     function setup(){
-      loadLastSaved();
-      buildAvailabilityCache();
-      buildTimetable();
-      document.getElementById('exportBtn').addEventListener('click', exportTimetable);
-      console.log('setup executed: timetable built — master_config:', master_config);
+      measurePerformance('setup', () => {
+        measurePerformance('loadLastSaved', loadLastSaved);
+        measurePerformance('buildAvailabilityCache', buildAvailabilityCache);
+        measurePerformance('buildTimetable', buildTimetable);
+        document.getElementById('exportBtn').addEventListener('click', exportTimetable);
+        console.log('setup executed: timetable built — master_config:', master_config);
+      });
     }
 
     function buildTimetable(){
-      // Build a slot-based timetable with time labels and recess periods
-      const days = ['Mon','Tue','Wed','Thu','Fri'];
-      // Define time slots with labels and types
-      const timeSlots = [
-        { slot: 1, label: '7:50-8:35', type: 'class' },
-        { slot: 'short-recess', label: 'Short Recess\n8:35-8:45', type: 'recess' },
-        { slot: 2, label: '8:45-9:30', type: 'class' },
-        { slot: 3, label: '9:30-10:15', type: 'class' },
-        { slot: 'long-recess', label: 'Long Recess\n10:15-10:30', type: 'recess' },
-        { slot: 4, label: '10:30-11:15', type: 'class' },
-        { slot: 5, label: '11:15-12:00', type: 'class' }
-      ];
-      const table = document.createElement('table');
-      const thead = document.createElement('thead');
-      const headRow = document.createElement('tr');
-      const emptyTh = document.createElement('th'); emptyTh.textContent='Time'; headRow.appendChild(emptyTh);
-      days.forEach(d=>{const th=document.createElement('th');th.textContent=d;headRow.appendChild(th)});
-      thead.appendChild(headRow); table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-      timeSlots.forEach(timeSlot=>{
-        const tr = document.createElement('tr');
-        const slotCell = document.createElement('td');
-        slotCell.textContent = timeSlot.label;
-        slotCell.style.whiteSpace = 'pre-line'; // Allow line breaks
-        slotCell.style.fontWeight = '600';
-        if(timeSlot.type === 'recess'){
-          slotCell.style.background = 'var(--secondary-bg)';
-        }
-        tr.appendChild(slotCell);
+      return measurePerformance('buildTimetable', () => {
+        // Build a slot-based timetable with time labels and recess periods
+        const days = ['Mon','Tue','Wed','Thu','Fri'];
+        // Define time slots with labels and types
+        const timeSlots = [
+          { slot: 1, label: '7:50-8:35', type: 'class' },
+          { slot: 'short-recess', label: 'Short Recess\n8:35-8:45', type: 'recess' },
+          { slot: 2, label: '8:45-9:30', type: 'class' },
+          { slot: 3, label: '9:30-10:15', type: 'class' },
+          { slot: 'long-recess', label: 'Long Recess\n10:15-10:30', type: 'recess' },
+          { slot: 4, label: '10:30-11:15', type: 'class' },
+          { slot: 5, label: '11:15-12:00', type: 'class' }
+        ];
         
-        days.forEach((day,di)=>{
-          const td = document.createElement('td');
-          if(timeSlot.type === 'class'){
-            td.setAttribute('data-day', di); 
-            td.setAttribute('data-slot', timeSlot.slot);
-            td.className = 'timetable-cell';
-            td.addEventListener('click', ()=> onCellClick(di, timeSlot.slot, td));
-          } else {
-            // Recess cells - non-interactive, grey background
-            td.style.background = 'var(--secondary-bg)';
-            td.style.cursor = 'default';
+        // Create document fragment to minimize reflows (OPTIMIZATION)
+        const fragment = document.createDocumentFragment();
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        const emptyTh = document.createElement('th'); emptyTh.textContent='Time'; headRow.appendChild(emptyTh);
+        days.forEach(d=>{const th=document.createElement('th');th.textContent=d;headRow.appendChild(th)});
+        thead.appendChild(headRow); table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        timeSlots.forEach(timeSlot=>{
+          const tr = document.createElement('tr');
+          const slotCell = document.createElement('td');
+          slotCell.textContent = timeSlot.label;
+          slotCell.style.whiteSpace = 'pre-line'; // Allow line breaks
+          slotCell.style.fontWeight = '600';
+          if(timeSlot.type === 'recess'){
+            slotCell.style.background = 'var(--secondary-bg)';
           }
-          tr.appendChild(td);
+          tr.appendChild(slotCell);
+          
+          days.forEach((day,di)=>{
+            const td = document.createElement('td');
+            if(timeSlot.type === 'class'){
+              td.setAttribute('data-day', di); 
+              td.setAttribute('data-slot', timeSlot.slot);
+              td.className = 'timetable-cell';
+              td.addEventListener('click', ()=> onCellClick(di, timeSlot.slot, td));
+            } else {
+              // Recess cells - non-interactive, grey background
+              td.style.background = 'var(--secondary-bg)';
+              td.style.cursor = 'default';
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
         });
-        tbody.appendChild(tr);
+        table.appendChild(tbody);
+        fragment.appendChild(table);
+        
+        const container = document.getElementById('timetable');
+        container.innerHTML = '';
+        container.appendChild(fragment);
+        
+        // Clear DOM cache after structure changes
+        clearDOMCache();
+        
+        // initial render for default view
+        measurePerformance('renderTopTabs (from buildTimetable)', renderTopTabs);
+        measurePerformance('renderTimetableForCurrentView (from buildTimetable)', renderTimetableForCurrentView);
       });
-      table.appendChild(tbody);
-      const container = document.getElementById('timetable');
-      container.innerHTML = '';
-      container.appendChild(table);
-      // initial render for default view
-      renderTopTabs();
-      renderTimetableForCurrentView();
     }
 
     // When a cell is clicked allow assigning a class to that timeslot or editing existing class
     function onCellClick(day, slot, td){
-      // Check if there's already a class assigned
-      const existingClassId = findClassInCell(day, slot);
-      if(existingClassId){
-        // Open class editor for this class
-        openClassEditor(existingClassId);
-      } else {
-        // open assignment modal (in-UI chooser)
-        openAssignModal(day, slot, td);
-      }
+      return measurePerformance('onCellClick', () => {
+        // Check if there's already a class assigned
+        const existingClassId = findClassInCell(day, slot);
+        if(existingClassId){
+          // Open class editor for this class
+          openClassEditor(existingClassId);
+        } else {
+          // open assignment modal (in-UI chooser)
+          openAssignModal(day, slot, td);
+        }
+      });
     }
     
-    // Find class ID assigned to a specific timeslot
+    // Find class ID assigned to a specific timeslot (OPTIMIZED with cache)
+    // NOTE: Returns first class if multiple exist in same slot (which indicates a conflict)
     function findClassInCell(day, slot){
-      const classes = master_config.classes || {};
-      for(const cid of Object.keys(classes)){
-        const cls = classes[cid];
-        if(Array.isArray(cls.timeSlots)){
-          if(cls.timeSlots.some(ts => ts.day === day && ts.slot === slot)){
-            return cid;
-          }
+      return measurePerformance('findClassInCell', () => {
+        // Use availability cache for O(1) lookup instead of O(n) iteration
+        const slotData = availabilityCache[day]?.[slot];
+        if (slotData && slotData.classes.size > 0) {
+          // Use Set iterator directly for efficiency
+          return slotData.classes.values().next().value;
         }
-      }
-      return null;
+        return null;
+      });
     }
 
     // Assignment modal logic
@@ -1540,59 +1696,327 @@
       }
 
       function renderTimetableForCurrentView(){
-        const mode = currentViewMode;
-        const items = (mode==='teacher'? Object.keys(master_config.teachers||{}): mode==='group'? Object.keys(master_config.groups||{}): Object.keys(master_config.rooms||{}));
-        if(items.length===0) return clearTimetable();
-        renderTimetableFor(mode, items[0]);
+        return measurePerformance('renderTimetableForCurrentView', () => {
+          const mode = currentViewMode;
+          const items = (mode==='teacher'? Object.keys(master_config.teachers||{}): mode==='group'? Object.keys(master_config.groups||{}): Object.keys(master_config.rooms||{}));
+          if(items.length===0) return clearTimetable();
+          renderTimetableFor(mode, items[0]);
+        });
       }
 
       function clearTimetable(){
-        document.querySelectorAll('.timetable-cell').forEach(c=> {
-          c.innerHTML = '';
-          c.style.background = '';
+        return measurePerformance('clearTimetable', () => {
+          // OPTIMIZED: Batch DOM updates
+          const cells = getCachedElements('.timetable-cell');
+          cells.forEach(c=> {
+            c.innerHTML = '';
+            c.style.background = '';
+          });
         });
       }
 
       function renderTimetableFor(mode, id){
-        clearTimetable();
-        const classes = master_config.classes || {};
-        
-        // First, mark all cells as free
-        document.querySelectorAll('.timetable-cell').forEach(cell => {
-          cell.classList.add('free');
-          cell.innerHTML = 'free';
-          cell.style.background = 'white';
-        });
-        
-        // Then fill in assigned classes
-        Object.keys(classes).forEach(cid=>{
-          const cls = classes[cid];
-          const matches = (mode==='teacher' && cls.teacherId===id) || (mode==='room' && cls.roomId===id) || (mode==='group' && Array.isArray(cls.groupIds) && cls.groupIds.includes(id));
-          if(matches && Array.isArray(cls.timeSlots)){
-            cls.timeSlots.forEach(ts=>{
-              const selector = `.timetable-cell[data-day="${ts.day}"][data-slot="${ts.slot}"]`;
-              const cell = document.querySelector(selector);
-              if(cell){
-                cell.classList.remove('free');
-                cell.innerHTML = '';
-                const div = document.createElement('div'); 
-                div.textContent = cls.title || 'Untitled'; 
-                div.title = (`${cls.title||''}\nTeacher: ${master_config.teachers[cls.teacherId]?master_config.teachers[cls.teacherId].name:'(none)'}\nRoom: ${master_config.rooms[cls.roomId]?master_config.rooms[cls.roomId].name:'(none)'}`);
-                cell.appendChild(div);
-                // Apply class color if available
-                if(cls.color){
-                  cell.style.background = cls.color;
-                } else {
-                  cell.style.background = '';
+        return measurePerformance('renderTimetableFor', () => {
+          clearTimetable();
+          const classes = master_config.classes || {};
+          
+          // OPTIMIZED: Query all cells once and cache
+          const allCells = getCachedElements('.timetable-cell');
+          
+          // OPTIMIZED: Create a map for faster cell lookup by day/slot
+          const cellMap = new Map();
+          allCells.forEach(cell => {
+            const day = cell.getAttribute('data-day');
+            const slot = cell.getAttribute('data-slot');
+            const key = `${day}-${slot}`;
+            cellMap.set(key, cell);
+          });
+          
+          // First, mark all cells as free
+          // Note: Modern browsers batch these style changes automatically to minimize reflows
+          allCells.forEach(cell => {
+            cell.classList.add('free');
+            cell.innerHTML = 'free';
+            cell.style.background = 'white';
+          });
+          
+          // OPTIMIZED: Pre-cache teacher/room/group names for tooltip generation
+          const teacherNames = master_config.teachers || {};
+          const roomNames = master_config.rooms || {};
+          
+          // Then fill in assigned classes
+          Object.keys(classes).forEach(cid=>{
+            const cls = classes[cid];
+            const matches = (mode==='teacher' && cls.teacherId===id) || (mode==='room' && cls.roomId===id) || (mode==='group' && Array.isArray(cls.groupIds) && cls.groupIds.includes(id));
+            if(matches && Array.isArray(cls.timeSlots)){
+              cls.timeSlots.forEach(ts=>{
+                const cellKey = `${ts.day}-${ts.slot}`;
+                const cell = cellMap.get(cellKey);
+                if(cell){
+                  cell.classList.remove('free');
+                  cell.innerHTML = '';
+                  const div = document.createElement('div'); 
+                  div.textContent = cls.title || 'Untitled'; 
+                  div.title = (`${cls.title||''}\nTeacher: ${teacherNames[cls.teacherId]?teacherNames[cls.teacherId].name:'(none)'}\nRoom: ${roomNames[cls.roomId]?roomNames[cls.roomId].name:'(none)'}`);
+                  cell.appendChild(div);
+                  // Apply class color if available
+                  if(cls.color){
+                    cell.style.background = cls.color;
+                  } else {
+                    cell.style.background = '';
+                  }
                 }
-              }
-            });
-          }
+              });
+            }
+          });
         });
       }
 
       // update top tabs when master_config changes
-      document.addEventListener('master_config_changed', ()=>{ renderTopTabs(); renderTimetableForCurrentView(); });
+      document.addEventListener('master_config_changed', ()=>{ 
+        measurePerformance('master_config_changed handler', () => {
+          clearDOMCache(); // Clear cache when config changes
+          clearComputedCache(); // Clear computed values cache
+          renderTopTabs(); 
+          renderTimetableForCurrentView(); 
+        });
+      });
+
+      // ====== PERFORMANCE TESTING & SIMULATION ======
+      
+      // Simulate adding a class via cell click
+      function simulateAddClassViaCell() {
+        console.group('🧪 Simulating: Add Class via Cell Click');
+        const startTime = performance.now();
+        
+        // Find an empty cell
+        const cells = document.querySelectorAll('.timetable-cell.free');
+        if (cells.length === 0) {
+          console.warn('No free cells available for simulation');
+          console.groupEnd();
+          return;
+        }
+        
+        const cell = cells[0];
+        const day = parseInt(cell.getAttribute('data-day'));
+        const slot = parseInt(cell.getAttribute('data-slot'));
+        
+        console.log(`Clicking cell: day=${day}, slot=${slot}`);
+        cell.click();
+        
+        const endTime = performance.now();
+        console.log(`Total time for cell click: ${(endTime - startTime).toFixed(2)}ms`);
+        console.groupEnd();
+      }
+      
+      // Simulate adding a class via modal
+      function simulateAddClassViaModal() {
+        console.group('🧪 Simulating: Add Class via Modal');
+        const startTime = performance.now();
+        
+        // Create test data
+        const testClassId = uid('test_class');
+        const testTeacherId = uid('test_teacher');
+        const testRoomId = uid('test_room');
+        const testGroupId = uid('test_group');
+        
+        // Add teacher
+        measurePerformance('Add teacher', () => {
+          master_config.teachers = master_config.teachers || {};
+          master_config.teachers[testTeacherId] = { name: 'Test Teacher' };
+        });
+        
+        // Add room
+        measurePerformance('Add room', () => {
+          master_config.rooms = master_config.rooms || {};
+          master_config.rooms[testRoomId] = { name: 'Test Room' };
+        });
+        
+        // Add group
+        measurePerformance('Add group', () => {
+          master_config.groups = master_config.groups || {};
+          master_config.groups[testGroupId] = { name: 'Test Group' };
+        });
+        
+        // Add class with timeslots
+        measurePerformance('Add class', () => {
+          master_config.classes = master_config.classes || {};
+          master_config.classes[testClassId] = {
+            title: 'Test Class',
+            teacherId: testTeacherId,
+            roomId: testRoomId,
+            groupIds: [testGroupId],
+            timeSlots: [
+              { day: 0, slot: 1 },
+              { day: 1, slot: 2 }
+            ],
+            color: '#4CAF50'
+          };
+        });
+        
+        // Update cache
+        measurePerformance('Update availability cache', () => {
+          updateAvailabilityCacheForClass(testClassId, [], master_config.classes[testClassId].timeSlots);
+        });
+        
+        // Trigger UI update
+        measurePerformance('Trigger UI update', () => {
+          dispatchMasterConfigChanged();
+        });
+        
+        const endTime = performance.now();
+        console.log(`Total time for modal add: ${(endTime - startTime).toFixed(2)}ms`);
+        console.groupEnd();
+        
+        return testClassId;
+      }
+      
+      // Simulate bulk operations
+      function simulateBulkAddClasses(count = 10) {
+        console.group(`🧪 Simulating: Bulk Add ${count} Classes`);
+        const startTime = performance.now();
+        
+        const classIds = [];
+        
+        for (let i = 0; i < count; i++) {
+          const classId = uid('bulk_class');
+          const teacherId = uid('bulk_teacher');
+          const roomId = uid('bulk_room');
+          const groupId = uid('bulk_group');
+          
+          master_config.teachers = master_config.teachers || {};
+          master_config.teachers[teacherId] = { name: `Bulk Teacher ${i}` };
+          
+          master_config.rooms = master_config.rooms || {};
+          master_config.rooms[roomId] = { name: `Bulk Room ${i}` };
+          
+          master_config.groups = master_config.groups || {};
+          master_config.groups[groupId] = { name: `Bulk Group ${i}` };
+          
+          master_config.classes = master_config.classes || {};
+          master_config.classes[classId] = {
+            title: `Bulk Class ${i}`,
+            teacherId: teacherId,
+            roomId: roomId,
+            groupIds: [groupId],
+            timeSlots: [
+              { day: i % 5, slot: (i % 5) + 1 }
+            ],
+            color: `hsl(${i * 36}, 70%, 60%)`
+          };
+          
+          updateAvailabilityCacheForClass(classId, [], master_config.classes[classId].timeSlots);
+          classIds.push(classId);
+        }
+        
+        // Single UI update at the end
+        dispatchMasterConfigChanged();
+        
+        const endTime = performance.now();
+        console.log(`Total time for bulk add ${count} classes: ${(endTime - startTime).toFixed(2)}ms`);
+        console.log(`Average time per class: ${((endTime - startTime) / count).toFixed(2)}ms`);
+        console.groupEnd();
+        
+        return classIds;
+      }
+      
+      // Run comprehensive performance test
+      function runPerformanceTest() {
+        console.clear();
+        console.log('%c🚀 PERFORMANCE TEST SUITE STARTING', 'color: #4CAF50; font-size: 16px; font-weight: bold');
+        console.log('═══════════════════════════════════════════════════════════');
+        
+        // Reset metrics
+        performanceMetrics.measurements = [];
+        
+        // Test 1: Initial load
+        console.group('Test 1: Initial Page Load');
+        console.log('Already measured during page load - see above');
+        console.groupEnd();
+        
+        // Test 2: Add via modal
+        console.log('\n');
+        const testClassId = simulateAddClassViaModal();
+        
+        // Test 3: Bulk operations
+        console.log('\n');
+        simulateBulkAddClasses(20);
+        
+        // Test 4: Render performance
+        console.log('\n');
+        console.group('Test 4: Render Performance');
+        measurePerformance('Full timetable re-render', () => {
+          renderTimetableForCurrentView();
+        });
+        console.groupEnd();
+        
+        // Display summary
+        console.log('\n');
+        console.log('%c📊 PERFORMANCE TEST SUMMARY', 'color: #2196F3; font-size: 14px; font-weight: bold');
+        console.log('═══════════════════════════════════════════════════════════');
+        logPerformanceSummary();
+        
+        // Analyze bottlenecks
+        console.log('\n');
+        console.log('%c🔍 BOTTLENECK ANALYSIS', 'color: #FF9800; font-size: 14px; font-weight: bold');
+        console.log('═══════════════════════════════════════════════════════════');
+        analyzeBottlenecks();
+        
+        console.log('\n');
+        console.log('%c✅ PERFORMANCE TEST COMPLETE', 'color: #4CAF50; font-size: 16px; font-weight: bold');
+      }
+      
+      // Analyze bottlenecks
+      function analyzeBottlenecks() {
+        const summary = getPerformanceSummary();
+        const sortedByTotal = Object.entries(summary)
+          .sort((a, b) => b[1].total - a[1].total)
+          .slice(0, 5);
+        
+        console.log('Top 5 functions by total time:');
+        sortedByTotal.forEach(([name, stats], i) => {
+          console.log(`${i + 1}. ${name}: ${stats.total.toFixed(2)}ms (${stats.count} calls)`);
+        });
+        
+        console.log('\nRecommendations:');
+        sortedByTotal.forEach(([name, stats]) => {
+          if (name.includes('render') && stats.avg > 10) {
+            console.log(`⚠️ ${name} is slow (avg ${stats.avg.toFixed(2)}ms) - consider optimization`);
+          }
+          if (stats.count > 50) {
+            console.log(`⚠️ ${name} is called frequently (${stats.count} times) - consider caching`);
+          }
+        });
+        
+        // Check for specific patterns
+        const domOperations = Object.entries(summary).filter(([name]) => 
+          name.includes('querySelector') || name.includes('DOM') || name.includes('render')
+        );
+        
+        if (domOperations.length > 0) {
+          const domTotal = domOperations.reduce((sum, [_, stats]) => sum + stats.total, 0);
+          console.log(`\n💡 DOM operations total: ${domTotal.toFixed(2)}ms`);
+          console.log('   Optimization: DOM operations have been optimized with caching and batch updates');
+        }
+      }
+      
+      // Make functions available globally for console access
+      window.runPerformanceTest = runPerformanceTest;
+      window.simulateAddClassViaCell = simulateAddClassViaCell;
+      window.simulateAddClassViaModal = simulateAddClassViaModal;
+      window.simulateBulkAddClasses = simulateBulkAddClasses;
+      window.logPerformanceSummary = logPerformanceSummary;
+      window.analyzeBottlenecks = analyzeBottlenecks;
+      window.getPerformanceSummary = getPerformanceSummary;
+      
+      console.log('%c🎯 Performance Testing Tools Loaded', 'color: #9C27B0; font-weight: bold');
+      console.log('Available commands:');
+      console.log('  • runPerformanceTest() - Run comprehensive performance test');
+      console.log('  • simulateAddClassViaCell() - Simulate adding class by clicking cell');
+      console.log('  • simulateAddClassViaModal() - Simulate adding class via modal');
+      console.log('  • simulateBulkAddClasses(n) - Add n classes at once');
+      console.log('  • logPerformanceSummary() - Show performance metrics summary');
+      console.log('  • analyzeBottlenecks() - Analyze performance bottlenecks');
 
 
     // run setup when loaded
