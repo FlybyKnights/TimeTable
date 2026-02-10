@@ -1248,9 +1248,9 @@
           const meta = document.createElement('div'); meta.className='meta';
             if(key==='classes') {
               meta.textContent = (rec.title||'Untitled') + ' — ' + (rec.class_code||'');
-              // For classes, make the entire row clickable to open edit modal
+              // For classes, make the entire row clickable to open edit class modal
               row.style.cursor = 'pointer';
-              row.addEventListener('click', ()=> openEditForm(key,id));
+              row.addEventListener('click', ()=> openClassEditor(id));
             } else {
               meta.textContent = rec.name || ('#'+id);
               const actions = document.createElement('div');
