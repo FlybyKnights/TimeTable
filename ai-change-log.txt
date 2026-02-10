@@ -21,3 +21,8 @@ Summary: Improved UI with dark theme and emoji icons. Added modern dark color sc
 Request:
 Can you imporve teh look adn feel of the UI using font awsome icons and colors. Try to kee the interface in a dark theme.
 ---
+2026-02-10T18:24:03Z | GitHub Copilot Agent
+Summary: Added time slot counter feature to enhance class information visibility. Implemented a time slot count display in two locations: (1) Added "Time Slots: X" to the tooltip shown when hovering over class cells on the main timetable page, and (2) Added a read-only "Time Slots: X" label on the same line as the Title field in the edit class modal. The counter dynamically updates as time slots are assigned or removed from a class. Changes were made to timetable.html at lines 1699 (tooltip) and 945-969 (modal display).
+Request:
+Can you add a time slot counter for each class and add it to the tootltip on the main page and as a field in the same lineas the title (it shoudl not be editable nor a text input field?) in the edit class modal?
+---
