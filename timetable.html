@@ -266,6 +266,9 @@
         <strong><span class="icon">🔧</span> Config</strong>
         <button id="saveConfigBtn"><span class="icon">💾</span> Save</button>
         <button id="restoreConfigBtn"><span class="icon">↩️</span> Restore</button>
+        <button id="exportConfigBtn"><span class="icon">📤</span> Export</button>
+        <button id="importConfigBtn"><span class="icon">📥</span> Import</button>
+        <input type="file" id="importConfigFile" accept=".json" style="display:none">
       </div>
 
     </aside>
@@ -1557,7 +1560,64 @@
         try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
       });
 
+      // Export configuration to JSON file
+      document.getElementById('exportConfigBtn').addEventListener('click', ()=>{
+        const timecode = new Date().toISOString();
+        const data = JSON.stringify(master_config, null, 2);
+        const blob = new Blob([data], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `timetable-config-${timecode}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        alert('Configuration exported successfully!');
+      });
 
+      // Import configuration from JSON file
+      document.getElementById('importConfigBtn').addEventListener('click', ()=>{
+        document.getElementById('importConfigFile').click();
+      });
+
+      document.getElementById('importConfigFile').addEventListener('change', (e)=>{
+        const file = e.target.files[0];
+        if(!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const prev = JSON.stringify(master_config);
+            const importedConfig = JSON.parse(event.target.result);
+            
+            // Validate the imported config has the expected structure
+            if(!importedConfig || typeof importedConfig !== 'object') {
+              throw new Error('Invalid configuration format');
+            }
+            
+            master_config = importedConfig;
+            ensureMasterConfigStructure();
+            buildAvailabilityCache();
+            dispatchMasterConfigChanged();
+            renderTimetableForCurrentView();
+            
+            showUndoBanner('Configuration imported successfully', ()=>{
+              master_config = JSON.parse(prev);
+              buildAvailabilityCache();
+              dispatchMasterConfigChanged();
+              renderTimetableForCurrentView();
+            });
+            
+            alert('Configuration imported successfully!');
+          } catch(err) {
+            alert('Failed to import configuration: ' + err.message);
+          }
+          // Reset the file input so the same file can be imported again
+          e.target.value = '';
+        };
+        reader.readAsText(file);
+      });
 
       // Re-populate class forms when modal opens so selects/checkboxes reflect latest master_config
       document.getElementById('modalBackdrop').addEventListener('click', (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); });
