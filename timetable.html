@@ -1164,9 +1164,12 @@
         const saveBtn = document.createElement('button');
         saveBtn.innerHTML = '<span class="icon">💾</span> Save Class';
         saveBtn.addEventListener('click', () => {
+          const oldId = editId;
           saveClassFromEditor(editId, wrapper);
-          // Refresh conflicts after saving
-          setTimeout(() => renderClassEditorForm(editId), 100);
+          // If editing existing class, refresh to show updated conflicts
+          if(oldId){
+            setTimeout(() => renderClassEditorForm(oldId), 100);
+          }
         });
         btnRow.appendChild(saveBtn);
         
@@ -1382,15 +1385,12 @@
         const prev = JSON.stringify(master_config);
         delete master_config[key][id];
         dispatchMasterConfigChanged(); 
-        const content = document.getElementById('modalContent'); content.innerHTML = '';
-        renderConfigurationTab(content);
+        renderModalContent(key);
         const undoFn = ()=>{ 
           master_config = JSON.parse(prev); 
           buildAvailabilityCache();
           dispatchMasterConfigChanged(); 
-          const content = document.getElementById('modalContent'); 
-          content.innerHTML = ''; 
-          renderConfigurationTab(content); 
+          renderModalContent(key);
         };
         showUndoBanner('Deleted record', undoFn);
       }
@@ -1541,14 +1541,7 @@
           dispatchMasterConfigChanged();
         }
         // after save, re-render modal content for the same key so lists/forms update
-        if(key==='teachers' || key==='rooms' || key==='groups'){
-          // If we're in configuration tab, re-render the configuration tab
-          const content = document.getElementById('modalContent'); 
-          content.innerHTML = '';
-          renderConfigurationTab(content);
-        } else {
-          renderModalContent(key);
-        }
+        renderModalContent(key);
         console.log('Saved to master_config.', key, master_config[key]);
       }
 
