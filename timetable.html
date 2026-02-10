@@ -1562,7 +1562,7 @@
 
       // Export configuration to JSON file
       document.getElementById('exportConfigBtn').addEventListener('click', ()=>{
-        const timecode = new Date().toISOString();
+        const timecode = new Date().toISOString().replace(/:/g, '-');
         const data = JSON.stringify(master_config, null, 2);
         const blob = new Blob([data], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
@@ -1573,7 +1573,6 @@
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        alert('Configuration exported successfully!');
       });
 
       // Import configuration from JSON file
@@ -1608,8 +1607,6 @@
               dispatchMasterConfigChanged();
               renderTimetableForCurrentView();
             });
-            
-            alert('Configuration imported successfully!');
           } catch(err) {
             alert('Failed to import configuration: ' + err.message);
           }
