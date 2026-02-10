@@ -950,6 +950,22 @@
         titleInput.style.flex = '1';
         if(editId) titleInput.value = master_config.classes[editId].title || '';
         titleRow.appendChild(titleInput);
+        
+        // Add time slot counter (read-only display)
+        const timeSlotCount = editId && master_config.classes[editId] && master_config.classes[editId].timeSlots 
+          ? master_config.classes[editId].timeSlots.length 
+          : 0;
+        const slotCountLabel = document.createElement('label');
+        slotCountLabel.textContent = 'Time Slots:';
+        slotCountLabel.style.marginLeft = '15px';
+        const slotCountDisplay = document.createElement('span');
+        slotCountDisplay.textContent = timeSlotCount;
+        slotCountDisplay.style.marginLeft = '5px';
+        slotCountDisplay.style.fontWeight = 'bold';
+        slotCountDisplay.style.color = 'var(--accent)';
+        titleRow.appendChild(slotCountLabel);
+        titleRow.appendChild(slotCountDisplay);
+        
         wrapper.appendChild(titleRow);
         
         // Color picker
@@ -1696,7 +1712,8 @@
                   cell.innerHTML = '';
                   const div = document.createElement('div'); 
                   div.textContent = cls.title || 'Untitled'; 
-                  div.title = (`${cls.title||''}\nTeacher: ${teacherNames[cls.teacherId]?teacherNames[cls.teacherId].name:'(none)'}\nRoom: ${roomNames[cls.roomId]?roomNames[cls.roomId].name:'(none)'}`);
+                  const timeSlotCount = (cls.timeSlots && Array.isArray(cls.timeSlots)) ? cls.timeSlots.length : 0;
+                  div.title = (`${cls.title||''}\nTime Slots: ${timeSlotCount}\nTeacher: ${teacherNames[cls.teacherId]?teacherNames[cls.teacherId].name:'(none)'}\nRoom: ${roomNames[cls.roomId]?roomNames[cls.roomId].name:'(none)'}`);
                   cell.appendChild(div);
                   // Apply class color if available
                   if(cls.color){
