@@ -314,6 +314,7 @@
     // setup will be executed when the HTML file is loaded
     function setup(){
       loadLastSaved();
+      buildAvailabilityCache();
       buildTimetable();
       document.getElementById('exportBtn').addEventListener('click', exportTimetable);
       console.log('setup executed: timetable built — master_config:', master_config);
@@ -400,8 +401,12 @@
         document.getElementById('assignConflict').textContent = conflicts.map(c=>`${c.type}: ${c.name}`).join('; ');
         return;
       }
+      const oldTimeSlots = cls.timeSlots ? [...cls.timeSlots] : [];
       cls.timeSlots = cls.timeSlots || [];
-      if(!cls.timeSlots.some(ts=>ts.day===candidate.day && ts.slot===candidate.slot)) cls.timeSlots.push(candidate);
+      if(!cls.timeSlots.some(ts=>ts.day===candidate.day && ts.slot===candidate.slot)) {
+        cls.timeSlots.push(candidate);
+        updateAvailabilityCacheForClass(classId, oldTimeSlots, cls.timeSlots);
+      }
       document.getElementById('assignBackdrop').style.display='none'; assignContext=null;
       dispatchMasterConfigChanged(); renderTimetableForCurrentView();
     });
@@ -420,9 +425,10 @@
     function deleteRecord(key, id){
       if(!confirm('Delete this record?')) return;
       const prev = JSON.stringify(master_config);
+      if(key === 'classes') removeClassFromCache(id);
       delete master_config[key][id];
       dispatchMasterConfigChanged(); renderModalContent(key);
-      showUndoBanner('Deleted record', ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); renderModalContent(key); });
+      showUndoBanner('Deleted record', ()=>{ master_config = JSON.parse(prev); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderModalContent(key); });
     }
 
     function exportTimetable(){
@@ -443,6 +449,101 @@
       let master_config = {};
       const INDEX_KEY = 'index';
       const LAST_QUICK_SAVE_KEY = 'last_quick_save';
+
+      // --- Availability Cache for Performance Optimization ---
+      // Cache structure: availabilityCache[day][slot] = { teachers: Set, rooms: Set, groups: Set, classes: Set }
+      let availabilityCache = {};
+
+      function initAvailabilityCache(){
+        availabilityCache = {};
+        for(let day = 0; day < 5; day++){
+          availabilityCache[day] = {};
+          for(let slot = 1; slot <= 5; slot++){
+            availabilityCache[day][slot] = {
+              teachers: new Set(),
+              rooms: new Set(),
+              groups: new Set(),
+              classes: new Set()
+            };
+          }
+        }
+      }
+
+      function buildAvailabilityCache(){
+        initAvailabilityCache();
+        const classes = master_config.classes || {};
+        for(const classId of Object.keys(classes)){
+          const cls = classes[classId];
+          if(Array.isArray(cls.timeSlots)){
+            for(const ts of cls.timeSlots){
+              const slot = availabilityCache[ts.day]?.[ts.slot];
+              if(slot){
+                if(cls.teacherId) slot.teachers.add(cls.teacherId);
+                if(cls.roomId) slot.rooms.add(cls.roomId);
+                if(Array.isArray(cls.groupIds)){
+                  cls.groupIds.forEach(gid => slot.groups.add(gid));
+                }
+                slot.classes.add(classId);
+              }
+            }
+          }
+        }
+        console.log('Availability cache built');
+      }
+
+      function updateAvailabilityCacheForClass(classId, oldTimeSlots, newTimeSlots){
+        const cls = master_config.classes[classId];
+        if(!cls) return;
+        
+        // Remove old slots from cache
+        if(Array.isArray(oldTimeSlots)){
+          for(const ts of oldTimeSlots){
+            const slot = availabilityCache[ts.day]?.[ts.slot];
+            if(slot){
+              if(cls.teacherId) slot.teachers.delete(cls.teacherId);
+              if(cls.roomId) slot.rooms.delete(cls.roomId);
+              if(Array.isArray(cls.groupIds)){
+                cls.groupIds.forEach(gid => slot.groups.delete(gid));
+              }
+              slot.classes.delete(classId);
+            }
+          }
+        }
+        
+        // Add new slots to cache
+        if(Array.isArray(newTimeSlots)){
+          for(const ts of newTimeSlots){
+            const slot = availabilityCache[ts.day]?.[ts.slot];
+            if(slot){
+              if(cls.teacherId) slot.teachers.add(cls.teacherId);
+              if(cls.roomId) slot.rooms.add(cls.roomId);
+              if(Array.isArray(cls.groupIds)){
+                cls.groupIds.forEach(gid => slot.groups.add(gid));
+              }
+              slot.classes.add(classId);
+            }
+          }
+        }
+      }
+
+      function removeClassFromCache(classId){
+        const cls = master_config.classes[classId];
+        if(!cls) return;
+        
+        if(Array.isArray(cls.timeSlots)){
+          for(const ts of cls.timeSlots){
+            const slot = availabilityCache[ts.day]?.[ts.slot];
+            if(slot){
+              if(cls.teacherId) slot.teachers.delete(cls.teacherId);
+              if(cls.roomId) slot.rooms.delete(cls.roomId);
+              if(Array.isArray(cls.groupIds)){
+                cls.groupIds.forEach(gid => slot.groups.delete(gid));
+              }
+              slot.classes.delete(classId);
+            }
+          }
+        }
+      }
 
       function getIndex(){
         try{
@@ -540,31 +641,74 @@
       }
 
       // Conflict detection: return array of conflict details (empty = no conflict)
+      // Uses availability cache for O(1) lookups instead of O(n) iteration through all classes
       function checkConflicts(classId, candidateSlots, teacherId, roomId, groupIds){
         const conflicts = [];
         const classes = master_config.classes || {};
-        for(const otherId of Object.keys(classes)){
-          if(otherId === classId) continue;
-          const other = classes[otherId];
-          const otherSlots = other.timeSlots || [];
-          for(const cs of candidateSlots){
-            for(const os of otherSlots){
-              if(cs.day===os.day && cs.slot===os.slot){
-                if(teacherId && other.teacherId && teacherId === other.teacherId){
-                  conflicts.push({type:'Teacher conflict', id: otherId, name: master_config.teachers[other.teacherId]?master_config.teachers[other.teacherId].name:other.teacherId, classId: otherId, classTitle: other.title});
-                }
-                if(roomId && other.roomId && roomId === other.roomId){
-                  conflicts.push({type:'Room conflict', id: otherId, name: master_config.rooms[other.roomId]?master_config.rooms[other.roomId].name:other.roomId, classId: otherId, classTitle: other.title});
-                }
-                if(Array.isArray(groupIds) && Array.isArray(other.groupIds)){
-                  for(const g of groupIds) if(other.groupIds.includes(g)){
-                    conflicts.push({type:'Group conflict', groupId: g, groupName: master_config.groups[g]?master_config.groups[g].name:g, classId: otherId, classTitle: other.title});
+        
+        for(const cs of candidateSlots){
+          const slot = availabilityCache[cs.day]?.[cs.slot];
+          if(!slot) continue;
+          
+          // Check teacher conflicts
+          if(teacherId && slot.teachers.has(teacherId)){
+            // Find which class(es) have this teacher at this time
+            for(const otherId of slot.classes){
+              if(otherId === classId) continue;
+              const other = classes[otherId];
+              if(other && other.teacherId === teacherId){
+                conflicts.push({
+                  type:'Teacher conflict', 
+                  id: otherId, 
+                  name: master_config.teachers[other.teacherId]?master_config.teachers[other.teacherId].name:other.teacherId, 
+                  classId: otherId, 
+                  classTitle: other.title
+                });
+              }
+            }
+          }
+          
+          // Check room conflicts
+          if(roomId && slot.rooms.has(roomId)){
+            // Find which class(es) have this room at this time
+            for(const otherId of slot.classes){
+              if(otherId === classId) continue;
+              const other = classes[otherId];
+              if(other && other.roomId === roomId){
+                conflicts.push({
+                  type:'Room conflict', 
+                  id: otherId, 
+                  name: master_config.rooms[other.roomId]?master_config.rooms[other.roomId].name:other.roomId, 
+                  classId: otherId, 
+                  classTitle: other.title
+                });
+              }
+            }
+          }
+          
+          // Check group conflicts
+          if(Array.isArray(groupIds)){
+            for(const g of groupIds){
+              if(slot.groups.has(g)){
+                // Find which class(es) have this group at this time
+                for(const otherId of slot.classes){
+                  if(otherId === classId) continue;
+                  const other = classes[otherId];
+                  if(other && Array.isArray(other.groupIds) && other.groupIds.includes(g)){
+                    conflicts.push({
+                      type:'Group conflict', 
+                      groupId: g, 
+                      groupName: master_config.groups[g]?master_config.groups[g].name:g, 
+                      classId: otherId, 
+                      classTitle: other.title
+                    });
                   }
                 }
               }
             }
           }
         }
+        
         // dedupe by classId+type
         const keySet = new Set(); const dedup = [];
         conflicts.forEach(c=>{ const k = `${c.classId}|${c.type}|${c.groupId||''}`; if(!keySet.has(k)){ keySet.add(k); dedup.push(c); }});
@@ -766,6 +910,7 @@
                 return;
               }
               const cls = master_config.classes[editId];
+              const oldTimeSlots = cls.timeSlots ? [...cls.timeSlots] : [];
               cls.timeSlots = cls.timeSlots || [];
               const idx = cls.timeSlots.findIndex(ts => ts.day === day && ts.slot === slot);
               if(idx >= 0){
@@ -783,6 +928,7 @@
                 }
                 cls.timeSlots.push({day, slot});
               }
+              updateAvailabilityCacheForClass(editId, oldTimeSlots, cls.timeSlots);
               dispatchMasterConfigChanged();
               renderClassEditorForm(editId); // Re-render to update table
             });
@@ -836,6 +982,7 @@
           deleteBtn.innerHTML = '<span class="icon">🗑️</span> Delete Class';
           deleteBtn.addEventListener('click', () => {
             if(confirm('Delete this class?')){
+              removeClassFromCache(editId);
               delete master_config.classes[editId];
               dispatchMasterConfigChanged();
               closeClassEditor();
@@ -870,6 +1017,18 @@
         const timeSlots = editId && master_config.classes[editId] ? 
           (master_config.classes[editId].timeSlots || []) : [];
         
+        // If editing, check if teacher/room/group changed and update cache
+        if(editId && master_config.classes[editId]){
+          const oldClass = master_config.classes[editId];
+          const changed = oldClass.teacherId !== teacherId || 
+                          oldClass.roomId !== roomId || 
+                          JSON.stringify(oldClass.groupIds) !== JSON.stringify(groupIds);
+          if(changed){
+            // Remove old class from cache, update class, then add back
+            removeClassFromCache(editId);
+          }
+        }
+        
         master_config.classes[id] = {
           title,
           teacherId,
@@ -877,6 +1036,11 @@
           groupIds,
           timeSlots
         };
+        
+        // Update cache with new class data
+        if(editId){
+          updateAvailabilityCacheForClass(id, [], timeSlots);
+        }
         
         dispatchMasterConfigChanged();
         
@@ -1083,6 +1247,7 @@
         renderConfigurationTab(content);
         const undoFn = ()=>{ 
           master_config = JSON.parse(prev); 
+          buildAvailabilityCache();
           dispatchMasterConfigChanged(); 
           const content = document.getElementById('modalContent'); 
           content.innerHTML = ''; 
@@ -1268,7 +1433,7 @@
         const list = idx.map((e,i)=>`${i+1}. ${e.label||e.timecode} (${new Date(e.ts).toLocaleString()})`).join('\n');
         const sel = prompt('Restore which save?\n'+list+'\nEnter number'); if(!sel) return; const n=parseInt(sel,10)-1; if(isNaN(n)||n<0||n>=idx.length) return alert('Invalid');
         const entry = idx[n]; const raw = localStorage.getItem(entry.key); if(!raw) return alert('Save not found');
-        try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
+        try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
       });
 
       // Generate test data function
