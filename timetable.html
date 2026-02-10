@@ -315,7 +315,8 @@
     // ====== PERFORMANCE MONITORING INFRASTRUCTURE ======
     const performanceMetrics = {
       measurements: [],
-      enabled: true
+      enabled: true,
+      maxMeasurements: 1000 // Prevent unbounded memory growth
     };
 
     // Wrapper to measure function execution time
@@ -332,6 +333,11 @@
         duration: duration,
         timestamp: Date.now()
       });
+      
+      // Prevent unbounded memory growth - keep only last N measurements
+      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
+        performanceMetrics.measurements.shift();
+      }
       
       console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
       
@@ -352,6 +358,11 @@
         duration: duration,
         timestamp: Date.now()
       });
+      
+      // Prevent unbounded memory growth - keep only last N measurements
+      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
+        performanceMetrics.measurements.shift();
+      }
       
       console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
       
@@ -403,8 +414,8 @@
       computedValues: new Map()
     };
 
-    // Cache DOM queries
-    function getCachedElement(selector, refreshOnMutation = false) {
+    // Cache DOM queries (note: refreshOnMutation parameter reserved for future use)
+    function getCachedElement(selector) {
       if (!cacheStore.domQueries.has(selector)) {
         cacheStore.domQueries.set(selector, document.querySelector(selector));
       }
@@ -537,6 +548,7 @@
     }
     
     // Find class ID assigned to a specific timeslot (OPTIMIZED with cache)
+    // NOTE: Returns first class if multiple exist in same slot (which indicates a conflict)
     function findClassInCell(day, slot){
       return measurePerformance('findClassInCell', () => {
         // Use availability cache for O(1) lookup instead of O(n) iteration
@@ -1721,6 +1733,7 @@
           });
           
           // First, mark all cells as free
+          // Note: Modern browsers batch these style changes automatically to minimize reflows
           allCells.forEach(cell => {
             cell.classList.add('free');
             cell.innerHTML = 'free';
