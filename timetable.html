@@ -414,7 +414,7 @@
       computedValues: new Map()
     };
 
-    // Cache DOM queries (note: refreshOnMutation parameter reserved for future use)
+    // Cache DOM queries
     function getCachedElement(selector) {
       if (!cacheStore.domQueries.has(selector)) {
         cacheStore.domQueries.set(selector, document.querySelector(selector));
@@ -554,7 +554,8 @@
         // Use availability cache for O(1) lookup instead of O(n) iteration
         const slotData = availabilityCache[day]?.[slot];
         if (slotData && slotData.classes.size > 0) {
-          return Array.from(slotData.classes)[0]; // Return first class in slot
+          // Use Set iterator directly for efficiency
+          return slotData.classes.values().next().value;
         }
         return null;
       });
@@ -1710,7 +1711,6 @@
           cells.forEach(c=> {
             c.innerHTML = '';
             c.style.background = '';
-            c.classList.remove('free');
           });
         });
       }
