@@ -26,3 +26,8 @@ Summary: Added time slot counter feature to enhance class information visibility
 Request:
 Can you add a time slot counter for each class and add it to the tootltip on the main page and as a field in the same lineas the title (it shoudl not be editable nor a text input field?) in the edit class modal?
 ---
+2026-02-10T19:53:08Z | GitHub Copilot Agent
+Summary: Changed class click behavior in config modal to open the dedicated edit class modal instead of the config modal edit form. Modified line 1253 in timetable.html to call openClassEditor(id) instead of openEditForm(key, id) when clicking on a class in the Classes tab of the config modal. This provides users with immediate access to the full class editing interface including the schedule grid and time slot management, rather than the limited edit form within the config modal. Change was minimal (2 lines) and thoroughly tested.
+Request:
+when clicking on the class in the config open it in the edit class modal instead of the config modal that it normaly opened.
+---
