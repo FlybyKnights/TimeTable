@@ -33,9 +33,13 @@
     .wrap{max-width:1100px;margin:0 auto;background:var(--primary-bg);padding:16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
     h1{margin:0 0 12px;color:var(--text-primary);font-size:28px}
     #timetable{overflow:auto}
-    table{border-collapse:collapse;width:100%;background:var(--secondary-bg);border-radius:8px;overflow:hidden}
+    table{border-collapse:collapse;width:100%;background:var(--secondary-bg);border-radius:8px;overflow:hidden;table-layout:fixed}
     th,td{border:1px solid var(--border);padding:10px;text-align:center;color:var(--text-primary)}
     th{background:var(--secondary-bg);font-weight:600;text-transform:uppercase;font-size:12px;letter-spacing:0.5px}
+    /* Make main timetable columns equal width except first column */
+    #timetable table th:first-child, #timetable table td:first-child{width:120px}
+    #timetable table th:not(:first-child), #timetable table td:not(:first-child){width:auto}
+    .timetable-cell.free{background:white;color:#666}
     .controls{margin:8px 0}
     button{
       padding:10px 16px;
@@ -249,10 +253,7 @@
         <button id="quickSaveBtn"><span class="icon">⚡</span> Quick Save</button>
         <button id="listSavesBtn"><span class="icon">📋</span> List Saves (console)</button>
       </div>
-      <div style="margin-top:12px">
-        <strong>Test Data</strong>
-        <button id="generateTestDataBtn">Generate Test Data</button>
-      </div>
+
     </aside>
     <main class="main">
       <h1><span class="icon">📅</span> Timetable</h1>
@@ -321,25 +322,49 @@
     }
 
     function buildTimetable(){
-      // Build a slot-based timetable: rows = Slot 1..5, cols = Mon-Fri
+      // Build a slot-based timetable with time labels and recess periods
       const days = ['Mon','Tue','Wed','Thu','Fri'];
-      const slots = [1,2,3,4,5];
+      // Define time slots with labels and types
+      const timeSlots = [
+        { slot: 1, label: '7:50-8:35', type: 'class' },
+        { slot: 'short-recess', label: 'Short Recess\n8:35-8:45', type: 'recess' },
+        { slot: 2, label: '8:45-9:30', type: 'class' },
+        { slot: 3, label: '9:30-10:15', type: 'class' },
+        { slot: 'long-recess', label: 'Long Recess\n10:15-10:30', type: 'recess' },
+        { slot: 4, label: '10:30-11:15', type: 'class' },
+        { slot: 5, label: '11:15-12:00', type: 'class' }
+      ];
       const table = document.createElement('table');
       const thead = document.createElement('thead');
       const headRow = document.createElement('tr');
-      const emptyTh = document.createElement('th'); emptyTh.textContent='Slot'; headRow.appendChild(emptyTh);
+      const emptyTh = document.createElement('th'); emptyTh.textContent='Time'; headRow.appendChild(emptyTh);
       days.forEach(d=>{const th=document.createElement('th');th.textContent=d;headRow.appendChild(th)});
       thead.appendChild(headRow); table.appendChild(thead);
 
       const tbody = document.createElement('tbody');
-      slots.forEach(slot=>{
+      timeSlots.forEach(timeSlot=>{
         const tr = document.createElement('tr');
-        const slotCell = document.createElement('td'); slotCell.textContent = 'Slot '+slot; tr.appendChild(slotCell);
+        const slotCell = document.createElement('td');
+        slotCell.textContent = timeSlot.label;
+        slotCell.style.whiteSpace = 'pre-line'; // Allow line breaks
+        slotCell.style.fontWeight = '600';
+        if(timeSlot.type === 'recess'){
+          slotCell.style.background = 'var(--secondary-bg)';
+        }
+        tr.appendChild(slotCell);
+        
         days.forEach((day,di)=>{
           const td = document.createElement('td');
-          td.setAttribute('data-day', di); td.setAttribute('data-slot', slot);
-          td.className = 'timetable-cell';
-          td.addEventListener('click', ()=> onCellClick(di, slot, td));
+          if(timeSlot.type === 'class'){
+            td.setAttribute('data-day', di); 
+            td.setAttribute('data-slot', timeSlot.slot);
+            td.className = 'timetable-cell';
+            td.addEventListener('click', ()=> onCellClick(di, timeSlot.slot, td));
+          } else {
+            // Recess cells - non-interactive, grey background
+            td.style.background = 'var(--secondary-bg)';
+            td.style.cursor = 'default';
+          }
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
@@ -782,6 +807,21 @@
         titleRow.appendChild(titleInput);
         wrapper.appendChild(titleRow);
         
+        // Color picker
+        const colorRow = document.createElement('div');
+        colorRow.className = 'form-row';
+        colorRow.innerHTML = '<label>Color:</label>';
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.className = 'color-input';
+        colorInput.style.flex = '1';
+        colorInput.style.height = '40px';
+        colorInput.style.cursor = 'pointer';
+        if(editId) colorInput.value = master_config.classes[editId].color || '#4CAF50';
+        else colorInput.value = '#4CAF50'; // Default green color
+        colorRow.appendChild(colorInput);
+        wrapper.appendChild(colorRow);
+        
         // Teacher select
         const teacherRow = document.createElement('div');
         teacherRow.className = 'form-row';
@@ -858,26 +898,35 @@
         // Header
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = '<th>Slot</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>';
+        headerRow.innerHTML = '<th>Time</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th>';
         thead.appendChild(headerRow);
         table.appendChild(thead);
         
+        // Define time slots with labels
+        const timeSlots = [
+          { slot: 1, label: '7:50-8:35' },
+          { slot: 2, label: '8:45-9:30' },
+          { slot: 3, label: '9:30-10:15' },
+          { slot: 4, label: '10:30-11:15' },
+          { slot: 5, label: '11:15-12:00' }
+        ];
+        
         // Body
         const tbody = document.createElement('tbody');
-        for(let slot = 1; slot <= 5; slot++){
+        timeSlots.forEach(timeSlot => {
           const row = document.createElement('tr');
           const slotHeader = document.createElement('th');
-          slotHeader.textContent = 'Slot ' + slot;
+          slotHeader.textContent = timeSlot.label;
           row.appendChild(slotHeader);
           
           for(let day = 0; day < 5; day++){
             const cell = document.createElement('td');
             cell.setAttribute('data-day', day);
-            cell.setAttribute('data-slot', slot);
+            cell.setAttribute('data-slot', timeSlot.slot);
             
             // Check if this slot is selected for this class
             const isSelected = editId && master_config.classes[editId] && master_config.classes[editId].timeSlots && 
-              master_config.classes[editId].timeSlots.some(ts => ts.day === day && ts.slot === slot);
+              master_config.classes[editId].timeSlots.some(ts => ts.day === day && ts.slot === timeSlot.slot);
             
             // Get current selections for conflict checking
             const selectedTeacherId = teacherSelect.value;
@@ -886,7 +935,7 @@
             const selectedGroupIds = groupCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
             
             // Check for conflicts
-            const conflicts = checkConflicts(editId || 'temp', [{day, slot}], selectedTeacherId, selectedRoomId, selectedGroupIds);
+            const conflicts = checkConflicts(editId || 'temp', [{day, slot: timeSlot.slot}], selectedTeacherId, selectedRoomId, selectedGroupIds);
             
             if(isSelected){
               cell.className = 'timeslot-selected';
@@ -912,7 +961,7 @@
               const cls = master_config.classes[editId];
               const oldTimeSlots = cls.timeSlots ? [...cls.timeSlots] : [];
               cls.timeSlots = cls.timeSlots || [];
-              const idx = cls.timeSlots.findIndex(ts => ts.day === day && ts.slot === slot);
+              const idx = cls.timeSlots.findIndex(ts => ts.day === day && ts.slot === timeSlot.slot);
               if(idx >= 0){
                 // Remove
                 cls.timeSlots.splice(idx, 1);
@@ -921,12 +970,12 @@
                 const currTeacher = teacherSelect.value;
                 const currRoom = roomSelect.value;
                 const currGroups = Array.from(wrapper.querySelectorAll('.group-checkbox')).filter(cb => cb.checked).map(cb => cb.value);
-                const conflicts = checkConflicts(editId, [{day, slot}], currTeacher, currRoom, currGroups);
+                const conflicts = checkConflicts(editId, [{day, slot: timeSlot.slot}], currTeacher, currRoom, currGroups);
                 if(conflicts.length > 0){
                   alert('Cannot assign: ' + conflicts.map(c => c.type + ': ' + (c.classTitle || c.name || c.groupName)).join(', '));
                   return;
                 }
-                cls.timeSlots.push({day, slot});
+                cls.timeSlots.push({day, slot: timeSlot.slot});
               }
               updateAvailabilityCacheForClass(editId, oldTimeSlots, cls.timeSlots);
               dispatchMasterConfigChanged();
@@ -936,7 +985,7 @@
             row.appendChild(cell);
           }
           tbody.appendChild(row);
-        }
+        });
         table.appendChild(tbody);
         wrapper.appendChild(table);
         
@@ -1006,6 +1055,7 @@
         );
         if(existingClass) return alert('Class title already exists');
         
+        const color = wrapper.querySelector('.color-input').value;
         const teacherId = wrapper.querySelector('.teacher-select').value || '';
         const roomId = wrapper.querySelector('.room-select').value || '';
         const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
@@ -1024,6 +1074,7 @@
         
         master_config.classes[id] = {
           title,
+          color,
           teacherId,
           roomId,
           groupIds,
@@ -1430,74 +1481,7 @@
         try{ const prev = JSON.stringify(master_config); master_config = JSON.parse(raw); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); showUndoBanner('Restored '+(entry.label||entry.timecode), ()=>{ master_config = JSON.parse(prev); buildAvailabilityCache(); dispatchMasterConfigChanged(); renderTimetableForCurrentView(); }); }catch(e){ alert('Failed to restore'); }
       });
 
-      // Generate test data function
-      document.getElementById('generateTestDataBtn').addEventListener('click', ()=>{
-        if(!confirm('This will generate test data (5 teachers, 7 groups, 11 rooms). Continue?')) return;
-        const teacherNames = ['Ms. Johnson', 'Mr. Smith', 'Dr. Williams', 'Mrs. Brown', 'Prof. Davis'];
-        const subjects = ['Language Arts', 'Science', 'Chemistry', 'Sports', 'Music', 'Technology'];
-        
-        // Clear existing data
-        master_config.teachers = {};
-        master_config.groups = {};
-        master_config.rooms = {};
-        master_config.classes = {};
-        
-        // Create teachers
-        teacherNames.forEach((name, i) => {
-          const id = uid('teacher');
-          master_config.teachers[id] = { name };
-        });
-        
-        // Create groups (class 0 through 6)
-        for(let i = 0; i <= 6; i++){
-          const id = uid('group');
-          master_config.groups[id] = { name: `Class ${i}` };
-        }
-        
-        // Create rooms (1 through 11)
-        for(let i = 1; i <= 11; i++){
-          const id = uid('room');
-          master_config.rooms[id] = { name: `Room ${i}` };
-        }
-        
-        // Create some sample classes with random subjects
-        const teacherIds = Object.keys(master_config.teachers);
-        const groupIds = Object.keys(master_config.groups);
-        const roomIds = Object.keys(master_config.rooms);
-        
-        subjects.forEach((subject, idx) => {
-          const id = uid('class');
-          const teacherId = teacherIds[idx % teacherIds.length];
-          const roomId = roomIds[idx % roomIds.length];
-          // Music and Sports can have multiple groups, others have 1-2 groups
-          let classGroups;
-          if(subject === 'Music' || subject === 'Sports'){
-            // Assign 2-4 groups for Music and Sports
-            const numGroups = 2 + Math.floor(Math.random() * 3);
-            classGroups = groupIds.slice(0, numGroups);
-          } else {
-            // Other subjects: 1-2 groups
-            const numGroups = 1 + Math.floor(Math.random() * 2);
-            classGroups = [groupIds[Math.floor(Math.random() * groupIds.length)]];
-            if(numGroups === 2){
-              const second = groupIds[Math.floor(Math.random() * groupIds.length)];
-              if(!classGroups.includes(second)) classGroups.push(second);
-            }
-          }
-          
-          master_config.classes[id] = {
-            title: subject,
-            teacherId: teacherId,
-            roomId: roomId,
-            groupIds: classGroups,
-            timeSlots: []
-          };
-        });
-        
-        dispatchMasterConfigChanged();
-        renderTimetableForCurrentView();
-        alert('Test data generated successfully! Now you can assign classes to timeslots.');
-      });
+
 
       // Re-populate class forms when modal opens so selects/checkboxes reflect latest master_config
       document.getElementById('modalBackdrop').addEventListener('click', (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); });
@@ -1563,12 +1547,24 @@
       }
 
       function clearTimetable(){
-        document.querySelectorAll('.timetable-cell').forEach(c=> c.innerHTML='');
+        document.querySelectorAll('.timetable-cell').forEach(c=> {
+          c.innerHTML = '';
+          c.style.background = '';
+        });
       }
 
       function renderTimetableFor(mode, id){
         clearTimetable();
         const classes = master_config.classes || {};
+        
+        // First, mark all cells as free
+        document.querySelectorAll('.timetable-cell').forEach(cell => {
+          cell.classList.add('free');
+          cell.innerHTML = 'free';
+          cell.style.background = 'white';
+        });
+        
+        // Then fill in assigned classes
         Object.keys(classes).forEach(cid=>{
           const cls = classes[cid];
           const matches = (mode==='teacher' && cls.teacherId===id) || (mode==='room' && cls.roomId===id) || (mode==='group' && Array.isArray(cls.groupIds) && cls.groupIds.includes(id));
@@ -1577,8 +1573,18 @@
               const selector = `.timetable-cell[data-day="${ts.day}"][data-slot="${ts.slot}"]`;
               const cell = document.querySelector(selector);
               if(cell){
-                const div = document.createElement('div'); div.textContent = cls.title || 'Untitled'; div.title = (`${cls.title||''}\nTeacher: ${master_config.teachers[cls.teacherId]?master_config.teachers[cls.teacherId].name:'(none)'}\nRoom: ${master_config.rooms[cls.roomId]?master_config.rooms[cls.roomId].name:'(none)'}`);
+                cell.classList.remove('free');
+                cell.innerHTML = '';
+                const div = document.createElement('div'); 
+                div.textContent = cls.title || 'Untitled'; 
+                div.title = (`${cls.title||''}\nTeacher: ${master_config.teachers[cls.teacherId]?master_config.teachers[cls.teacherId].name:'(none)'}\nRoom: ${master_config.rooms[cls.roomId]?master_config.rooms[cls.roomId].name:'(none)'}`);
                 cell.appendChild(div);
+                // Apply class color if available
+                if(cls.color){
+                  cell.style.background = cls.color;
+                } else {
+                  cell.style.background = '';
+                }
               }
             });
           }
