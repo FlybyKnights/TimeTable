@@ -7,14 +7,16 @@
   <style>
     .icon{font-style:normal;margin-right:6px}
     :root{
-      --grid-color:#2a2a3a;
-      --bg:#1a1a2e;
-      --primary-bg:#16213e;
-      --secondary-bg:#0f3460;
-      --accent:#e94560;
-      --text-primary:#e6e6e6;
-      --text-secondary:#a0a0a0;
-      --border:#2d3748;
+      --grid-color:#e0e0e0;
+      --bg:#f5f5f5;
+      --primary-bg:#ffffff;
+      --secondary-bg:#f8f9fa;
+      --accent:#2196F3;
+      --text-primary:#212529;
+      --text-secondary:#6c757d;
+      --border:#dee2e6;
+      --recess-bg:#ADD8E6;
+      --free-slot-bg:#f0fff0;
     }
     html,body{height:100%;margin:0}
     body{
@@ -30,7 +32,7 @@
       padding:20px;
       box-sizing:border-box;
     }
-    .wrap{max-width:1100px;margin:0 auto;background:var(--primary-bg);padding:16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+    .wrap{max-width:1100px;margin:0 auto;background:var(--primary-bg);padding:16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.1)}
     h1{margin:0 0 12px;color:var(--text-primary);font-size:28px}
     #timetable{overflow:auto}
     table{border-collapse:collapse;width:100%;background:var(--secondary-bg);border-radius:8px;overflow:hidden;table-layout:fixed}
@@ -39,7 +41,7 @@
     /* Make main timetable columns equal width except first column */
     #timetable table th:first-child, #timetable table td:first-child{width:120px}
     #timetable table th:not(:first-child), #timetable table td:not(:first-child){width:auto}
-    .timetable-cell.free{background:white;color:#666}
+    .timetable-cell.free{background:var(--free-slot-bg);color:#333}
     .controls{margin:8px 0}
     button{
       padding:10px 16px;
@@ -135,12 +137,6 @@
       box-shadow:0 0 0 3px rgba(233,69,96,0.2);
     }
     .hidden{display:none}
-    .undo-banner{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:8px 12px;border-radius:6px;display:none;align-items:center;gap:8px}
-    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center}
-    .assign-modal{background:#fff;padding:12px;border-radius:8px;width:320px}
-    .timeslot-legend{display:flex;gap:12px;margin-top:8px;font-size:12px}
-    .timeslot-legend-item{display:flex;align-items:center;gap:4px}
-    .timeslot-legend-box{width:16px;height:16px;border:1px solid #999}
     .undo-banner{
       position:fixed;
       right:16px;
@@ -152,28 +148,12 @@
       display:none;
       align-items:center;
       gap:12px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.4);
+      box-shadow:0 4px 16px rgba(0,0,0,0.2);
       border:1px solid var(--accent);
     }
-    .assign-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-    .assign-modal{
-      background:var(--primary-bg);
-      padding:20px;
-      border-radius:12px;
-      width:320px;
-      box-shadow:0 12px 48px rgba(0,0,0,0.5);
-      border:1px solid var(--border);
-    }
-    .assign-modal h3{color:var(--text-primary);margin-top:0}
-    .assign-modal label{color:var(--text-primary)}
-    .assign-modal select{
-      background:var(--secondary-bg);
-      border:1px solid var(--border);
-      color:var(--text-primary);
-      padding:8px;
-      border-radius:4px;
-      width:100%;
-    }
+    .timeslot-legend{display:flex;gap:12px;margin-top:8px;font-size:12px}
+    .timeslot-legend-item{display:flex;align-items:center;gap:4px}
+    .timeslot-legend-box{width:16px;height:16px;border:1px solid #999}
     /* Radio button styling */
     input[type="radio"]{
       accent-color:var(--accent);
@@ -184,16 +164,16 @@
     .timetable-cell{cursor:pointer;transition:all 0.2s ease}
     .timetable-cell:hover{background:var(--accent);transform:scale(1.05)}
     /* Class editor modal - separate from main modal */
-    .class-editor-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);z-index:1000}
+    .class-editor-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);z-index:1000}
     .class-editor-modal{
       background:var(--primary-bg);
       border-radius:12px;
       padding:20px;
       width:90%;
-      max-width:900px;
-      max-height:90vh;
+      max-width:800px;
+      max-height:85vh;
       overflow:auto;
-      box-shadow:0 12px 48px rgba(0,0,0,0.5);
+      box-shadow:0 12px 48px rgba(0,0,0,0.2);
       border:1px solid var(--border);
     }
     /* Timeslot table in class editor */
@@ -204,9 +184,10 @@
     }
     .timeslot-table th, .timeslot-table td{
       border:1px solid var(--border);
-      padding:12px;
+      padding:8px;
       text-align:center;
-      min-width:80px;
+      min-width:70px;
+      font-size:13px;
     }
     .timeslot-table th{
       background:var(--secondary-bg);
@@ -234,6 +215,44 @@
       font-size:10px;
       color:#d00;
       margin-top:4px;
+    }
+    /* Compact form row for class editor */
+    .form-row.compact{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      margin:8px 0;
+    }
+    .form-row.compact > *:not(label){
+      flex:1;
+    }
+    /* Group button styling */
+    .group-button{
+      padding:8px 16px;
+      margin:4px;
+      border:2px solid var(--border);
+      background:var(--secondary-bg);
+      color:var(--text-secondary);
+      border-radius:6px;
+      cursor:pointer;
+      transition:all 0.2s ease;
+      font-size:14px;
+      font-weight:500;
+    }
+    .group-button:hover{
+      border-color:var(--accent);
+    }
+    .group-button.selected{
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+      font-weight:600;
+    }
+    /* Recess cells styling */
+    .recess-cell{
+      background:var(--recess-bg) !important;
+      color:#333;
+      font-weight:600;
     }
   </style>
 </head>
@@ -272,21 +291,6 @@
         <div><button id="closeModalBtn"><span class="icon">✖️</span> Close</button></div>
       </div>
       <div id="modalContent" class="tab-content"></div>
-    </div>
-  </div>
-
-  <!-- Assignment modal (replace prompt) -->
-  <div id="assignBackdrop" class="assign-modal-backdrop" role="dialog" aria-hidden="true">
-    <div class="assign-modal">
-      <h3><span class="icon">➕</span> Assign Class</h3>
-      <div style="margin:8px 0">
-        <label>Class: <select id="assignClassSelect"></select></label>
-      </div>
-      <div id="assignConflict" style="color:var(--accent);margin-bottom:8px"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button id="assignCancelBtn"><span class="icon">✖️</span> Cancel</button>
-        <button id="assignConfirmBtn"><span class="icon">✔️</span> Assign</button>
-      </div>
     </div>
   </div>
 
@@ -483,28 +487,39 @@
         timeSlots.forEach(timeSlot=>{
           const tr = document.createElement('tr');
           const slotCell = document.createElement('td');
-          slotCell.textContent = timeSlot.label;
-          slotCell.style.whiteSpace = 'pre-line'; // Allow line breaks
-          slotCell.style.fontWeight = '600';
-          if(timeSlot.type === 'recess'){
-            slotCell.style.background = 'var(--secondary-bg)';
-          }
-          tr.appendChild(slotCell);
           
-          days.forEach((day,di)=>{
-            const td = document.createElement('td');
-            if(timeSlot.type === 'class'){
+          if(timeSlot.type === 'recess'){
+            // For recess rows, only show time in first column
+            const timeMatch = timeSlot.label.match(/(\d+:\d+-\d+:\d+)/);
+            slotCell.textContent = timeMatch ? timeMatch[1] : timeSlot.label;
+            slotCell.style.whiteSpace = 'nowrap';
+            slotCell.style.fontWeight = '600';
+            tr.appendChild(slotCell);
+            
+            // Create a merged cell spanning all 5 days with recess label
+            const mergedCell = document.createElement('td');
+            mergedCell.setAttribute('colspan', '5');
+            mergedCell.className = 'recess-cell';
+            const recessName = timeSlot.label.includes('Short') ? 'Short Recess' : 'Long Recess';
+            mergedCell.textContent = recessName;
+            mergedCell.style.cursor = 'default';
+            tr.appendChild(mergedCell);
+          } else {
+            // Regular class slot
+            slotCell.textContent = timeSlot.label;
+            slotCell.style.whiteSpace = 'pre-line';
+            slotCell.style.fontWeight = '600';
+            tr.appendChild(slotCell);
+            
+            days.forEach((day,di)=>{
+              const td = document.createElement('td');
               td.setAttribute('data-day', di); 
               td.setAttribute('data-slot', timeSlot.slot);
               td.className = 'timetable-cell';
               td.addEventListener('click', ()=> onCellClick(di, timeSlot.slot, td));
-            } else {
-              // Recess cells - non-interactive, grey background
-              td.style.background = 'var(--secondary-bg)';
-              td.style.cursor = 'default';
-            }
-            tr.appendChild(td);
-          });
+              tr.appendChild(td);
+            });
+          }
           tbody.appendChild(tr);
         });
         table.appendChild(tbody);
@@ -532,8 +547,8 @@
           // Open class editor for this class
           openClassEditor(existingClassId);
         } else {
-          // open assignment modal (in-UI chooser)
-          openAssignModal(day, slot, td);
+          // Open class editor for a new class (instead of assign modal)
+          openClassEditor(null);
         }
       });
     }
@@ -551,37 +566,6 @@
         return null;
       });
     }
-
-    // Assignment modal logic
-    let assignContext = null;
-    function openAssignModal(day, slot, td){
-      assignContext = {day, slot, td};
-      const sel = document.getElementById('assignClassSelect'); sel.innerHTML = '';
-      const classes = master_config.classes || {};
-      Object.keys(classes).forEach(id=>{ const o = document.createElement('option'); o.value=id; o.textContent = classes[id].title || ('Class '+id); sel.appendChild(o); });
-      document.getElementById('assignConflict').textContent = '';
-      document.getElementById('assignBackdrop').style.display = 'flex'; document.getElementById('assignBackdrop').setAttribute('aria-hidden','false');
-    }
-
-    document.getElementById('assignCancelBtn').addEventListener('click', ()=>{ document.getElementById('assignBackdrop').style.display='none'; assignContext=null; });
-    document.getElementById('assignConfirmBtn').addEventListener('click', ()=>{
-      const sel = document.getElementById('assignClassSelect'); if(!sel.value) return alert('Select a class');
-      const classId = sel.value; const cls = master_config.classes[classId]; if(!cls) return alert('Class not found');
-      const candidate = {day: assignContext.day, slot: assignContext.slot};
-      const conflicts = checkConflicts(classId, [candidate], cls.teacherId, cls.roomId, cls.groupIds);
-      if(conflicts.length){
-        document.getElementById('assignConflict').textContent = conflicts.map(c=>`${c.type}: ${c.name}`).join('; ');
-        return;
-      }
-      const oldTimeSlots = cls.timeSlots ? [...cls.timeSlots] : [];
-      cls.timeSlots = cls.timeSlots || [];
-      if(!cls.timeSlots.some(ts=>ts.day===candidate.day && ts.slot===candidate.slot)) {
-        cls.timeSlots.push(candidate);
-        updateAvailabilityCacheForClass(classId, oldTimeSlots, cls.timeSlots);
-      }
-      document.getElementById('assignBackdrop').style.display='none'; assignContext=null;
-      dispatchMasterConfigChanged(); renderTimetableForCurrentView();
-    });
 
     // Undo banner helpers
     let undoTimer = null;
@@ -952,25 +936,31 @@
         titleRow.appendChild(titleInput);
         wrapper.appendChild(titleRow);
         
+        // Compact row: Color, Teacher, Room all in one row
+        const compactRow = document.createElement('div');
+        compactRow.className = 'form-row compact';
+        
         // Color picker
-        const colorRow = document.createElement('div');
-        colorRow.className = 'form-row';
-        colorRow.innerHTML = '<label>Color:</label>';
+        const colorLabel = document.createElement('label');
+        colorLabel.textContent = 'Color:';
+        colorLabel.style.marginRight = '4px';
+        compactRow.appendChild(colorLabel);
         const colorInput = document.createElement('input');
         colorInput.type = 'color';
         colorInput.className = 'color-input';
-        colorInput.style.flex = '1';
         colorInput.style.height = '40px';
         colorInput.style.cursor = 'pointer';
+        colorInput.style.minWidth = '60px';
         if(editId) colorInput.value = master_config.classes[editId].color || '#4CAF50';
-        else colorInput.value = '#4CAF50'; // Default green color
-        colorRow.appendChild(colorInput);
-        wrapper.appendChild(colorRow);
+        else colorInput.value = '#4CAF50';
+        compactRow.appendChild(colorInput);
         
         // Teacher select
-        const teacherRow = document.createElement('div');
-        teacherRow.className = 'form-row';
-        teacherRow.innerHTML = '<label>Teacher:</label>';
+        const teacherLabel = document.createElement('label');
+        teacherLabel.textContent = 'Teacher:';
+        teacherLabel.style.marginLeft = '12px';
+        teacherLabel.style.marginRight = '4px';
+        compactRow.appendChild(teacherLabel);
         const teacherSelect = document.createElement('select');
         teacherSelect.className = 'teacher-select';
         const emptyOpt = document.createElement('option');
@@ -984,13 +974,14 @@
           teacherSelect.appendChild(o);
         });
         if(editId) teacherSelect.value = master_config.classes[editId].teacherId || '';
-        teacherRow.appendChild(teacherSelect);
-        wrapper.appendChild(teacherRow);
+        compactRow.appendChild(teacherSelect);
         
         // Room select
-        const roomRow = document.createElement('div');
-        roomRow.className = 'form-row';
-        roomRow.innerHTML = '<label>Room:</label>';
+        const roomLabel = document.createElement('label');
+        roomLabel.textContent = 'Room:';
+        roomLabel.style.marginLeft = '12px';
+        roomLabel.style.marginRight = '4px';
+        compactRow.appendChild(roomLabel);
         const roomSelect = document.createElement('select');
         roomSelect.className = 'room-select';
         const emptyR = document.createElement('option');
@@ -1004,28 +995,37 @@
           roomSelect.appendChild(o);
         });
         if(editId) roomSelect.value = master_config.classes[editId].roomId || '';
-        roomRow.appendChild(roomSelect);
-        wrapper.appendChild(roomRow);
+        compactRow.appendChild(roomSelect);
         
-        // Groups checkboxes
+        wrapper.appendChild(compactRow);
+        
+        // Groups as buttons
         const groupsRow = document.createElement('div');
         groupsRow.className = 'form-row';
-        groupsRow.innerHTML = '<label>Groups:</label>';
+        groupsRow.innerHTML = '<label style="margin-right:8px">Groups:</label>';
         const groupsWrap = document.createElement('div');
         groupsWrap.style.display = 'flex';
-        groupsWrap.style.flexDirection = 'column';
+        groupsWrap.style.flexWrap = 'wrap';
+        groupsWrap.style.gap = '4px';
+        groupsWrap.style.flex = '1';
+        
         Object.keys(master_config.groups).forEach(gid => {
-          const cbRow = document.createElement('label');
-          cbRow.style.display = 'flex';
-          cbRow.style.alignItems = 'center';
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = gid;
-          cb.className = 'group-checkbox';
-          if(editId && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) cb.checked = true;
-          cbRow.appendChild(cb);
-          cbRow.appendChild(document.createTextNode(' ' + (master_config.groups[gid].name || 'Group')));
-          groupsWrap.appendChild(cbRow);
+          const groupBtn = document.createElement('button');
+          groupBtn.type = 'button';
+          groupBtn.className = 'group-button';
+          groupBtn.setAttribute('data-group-id', gid);
+          groupBtn.textContent = master_config.groups[gid].name || 'Group';
+          
+          if(editId && Array.isArray(master_config.classes[editId].groupIds) && master_config.classes[editId].groupIds.includes(gid)) {
+            groupBtn.classList.add('selected');
+          }
+          
+          groupBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            groupBtn.classList.toggle('selected');
+          });
+          
+          groupsWrap.appendChild(groupBtn);
         });
         groupsRow.appendChild(groupsWrap);
         wrapper.appendChild(groupsRow);
@@ -1076,8 +1076,8 @@
             // Get current selections for conflict checking
             const selectedTeacherId = teacherSelect.value;
             const selectedRoomId = roomSelect.value;
-            const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
-            const selectedGroupIds = groupCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+            const groupButtons = Array.from(wrapper.querySelectorAll('.group-button'));
+            const selectedGroupIds = groupButtons.filter(btn => btn.classList.contains('selected')).map(btn => btn.getAttribute('data-group-id'));
             
             // Check for conflicts
             const conflicts = checkConflicts(editId || 'temp', [{day, slot: timeSlot.slot}], selectedTeacherId, selectedRoomId, selectedGroupIds);
@@ -1114,7 +1114,7 @@
                 // Add (check conflicts first)
                 const currTeacher = teacherSelect.value;
                 const currRoom = roomSelect.value;
-                const currGroups = Array.from(wrapper.querySelectorAll('.group-checkbox')).filter(cb => cb.checked).map(cb => cb.value);
+                const currGroups = Array.from(wrapper.querySelectorAll('.group-button')).filter(btn => btn.classList.contains('selected')).map(btn => btn.getAttribute('data-group-id'));
                 const conflicts = checkConflicts(editId, [{day, slot: timeSlot.slot}], currTeacher, currRoom, currGroups);
                 if(conflicts.length > 0){
                   alert('Cannot assign: ' + conflicts.map(c => c.type + ': ' + (c.classTitle || c.name || c.groupName)).join(', '));
@@ -1174,6 +1174,33 @@
         btnRow.appendChild(saveBtn);
         
         if(editId){
+          const duplicateBtn = document.createElement('button');
+          duplicateBtn.innerHTML = '<span class="icon">📋</span> Duplicate Class';
+          duplicateBtn.addEventListener('click', () => {
+            const cls = master_config.classes[editId];
+            if(!cls) return;
+            
+            // Create duplicate without timeslots or groups
+            const newId = uid('class');
+            const newTitle = cls.title + ' (Copy)';
+            
+            master_config.classes[newId] = {
+              title: newTitle,
+              color: cls.color,
+              teacherId: cls.teacherId,
+              roomId: cls.roomId,
+              groupIds: [], // No groups in duplicate
+              timeSlots: [] // No timeslots in duplicate
+            };
+            
+            dispatchMasterConfigChanged();
+            
+            // Open the new class in editor
+            closeClassEditor();
+            setTimeout(() => openClassEditor(newId), 100);
+          });
+          btnRow.appendChild(duplicateBtn);
+          
           const deleteBtn = document.createElement('button');
           deleteBtn.innerHTML = '<span class="icon">🗑️</span> Delete Class';
           deleteBtn.addEventListener('click', () => {
@@ -1205,8 +1232,8 @@
         const color = wrapper.querySelector('.color-input').value;
         const teacherId = wrapper.querySelector('.teacher-select').value || '';
         const roomId = wrapper.querySelector('.room-select').value || '';
-        const groupCheckboxes = Array.from(wrapper.querySelectorAll('.group-checkbox'));
-        const groupIds = groupCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+        const groupButtons = Array.from(wrapper.querySelectorAll('.group-button'));
+        const groupIds = groupButtons.filter(btn => btn.classList.contains('selected')).map(btn => btn.getAttribute('data-group-id'));
         
         const id = editId || uid('class');
         
