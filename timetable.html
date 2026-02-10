@@ -308,56 +308,17 @@
   </div>
 
   <script>
-    // ====== PERFORMANCE MONITORING INFRASTRUCTURE ======
-    const performanceMetrics = {
-      measurements: [],
-      enabled: true,
-      maxMeasurements: 1000 // Prevent unbounded memory growth
-    };
+    // ====== PERFORMANCE MONITORING INFRASTRUCTURE (REMOVED) ======
+    // Performance tracking has been removed as per requirements
 
-    // Wrapper to measure function execution time
+    // Removed measurePerformance wrapper - functions now execute directly
     function measurePerformance(functionName, fn) {
-      if (!performanceMetrics.enabled) return fn();
-      
-      const startTime = performance.now();
-      const result = fn();
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-      
-      performanceMetrics.measurements.push({
-        function: functionName,
-        duration: duration,
-        timestamp: Date.now()
-      });
-      
-      // Prevent unbounded memory growth - keep only last N measurements
-      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
-        performanceMetrics.measurements.shift();
-      }
-      
-      console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
-      
-      return result;
+      return fn();
     }
 
-    // Async version for async functions
+    // Removed async version
     async function measurePerformanceAsync(functionName, fn) {
-      if (!performanceMetrics.enabled) return await fn();
-      
-      const startTime = performance.now();
-      const result = await fn();
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-      
-      performanceMetrics.measurements.push({
-        function: functionName,
-        duration: duration,
-        timestamp: Date.now()
-      });
-      
-      // Prevent unbounded memory growth - keep only last N measurements
-      if (performanceMetrics.measurements.length > performanceMetrics.maxMeasurements) {
-        performanceMetrics.measurements.shift();
+      return await fn();
       }
       
       console.log(`⏱️ ${functionName}: ${duration.toFixed(2)}ms`);
@@ -1325,19 +1286,26 @@
           const rec = records[id];
           const row = document.createElement('div'); row.className='record';
           const meta = document.createElement('div'); meta.className='meta';
-            if(key==='classes') meta.textContent = (rec.title||'Untitled') + ' — ' + (rec.class_code||'');
-            else meta.textContent = rec.name || ('#'+id);
-            const actions = document.createElement('div');
-            const edit = document.createElement('button'); 
-            const editIcon = document.createElement('span'); editIcon.className='icon'; editIcon.textContent='✏️';
-            edit.appendChild(editIcon); edit.appendChild(document.createTextNode(' Edit'));
-            edit.addEventListener('click', ()=> openEditForm(key,id));
-            const del = document.createElement('button'); 
-            const delIcon = document.createElement('span'); delIcon.className='icon'; delIcon.textContent='🗑️';
-            del.appendChild(delIcon); del.appendChild(document.createTextNode(' Delete'));
-            del.style.marginLeft='6px'; del.addEventListener('click', ()=> deleteRecord(key,id));
-            actions.appendChild(edit); actions.appendChild(del);
-          row.appendChild(meta); row.appendChild(actions); list.appendChild(row);
+            if(key==='classes') {
+              meta.textContent = (rec.title||'Untitled') + ' — ' + (rec.class_code||'');
+              // For classes, make the entire row clickable to open edit modal
+              row.style.cursor = 'pointer';
+              row.addEventListener('click', ()=> openEditForm(key,id));
+            } else {
+              meta.textContent = rec.name || ('#'+id);
+              const actions = document.createElement('div');
+              const edit = document.createElement('button'); 
+              const editIcon = document.createElement('span'); editIcon.className='icon'; editIcon.textContent='✏️';
+              edit.appendChild(editIcon); edit.appendChild(document.createTextNode(' Edit'));
+              edit.addEventListener('click', ()=> openEditForm(key,id));
+              const del = document.createElement('button'); 
+              const delIcon = document.createElement('span'); delIcon.className='icon'; delIcon.textContent='🗑️';
+              del.appendChild(delIcon); del.appendChild(document.createTextNode(' Delete'));
+              del.style.marginLeft='6px'; del.addEventListener('click', ()=> deleteRecordWithProtection(key,id));
+              actions.appendChild(edit); actions.appendChild(del);
+              row.appendChild(actions);
+            }
+          row.appendChild(meta); list.appendChild(row);
         });
         content.appendChild(list);
 
@@ -1510,7 +1478,20 @@
           const cellWrap = cb.parentElement;
           if(conflicts.length > 0){
             cellWrap.style.backgroundColor = '#ffcccc';
-            cellWrap.title = 'Conflicts: ' + conflicts.map(c=>`${c.type} (${c.classTitle || c.name || c.groupName})`).join(', ');
+            // Deduplicate group names in conflicts
+            const uniqueConflicts = [];
+            const seenGroups = new Set();
+            conflicts.forEach(c => {
+              if (c.type === 'Group conflict') {
+                if (!seenGroups.has(c.groupName)) {
+                  seenGroups.add(c.groupName);
+                  uniqueConflicts.push(c);
+                }
+              } else {
+                uniqueConflicts.push(c);
+              }
+            });
+            cellWrap.title = 'Conflicts: ' + uniqueConflicts.map(c=>`${c.type} (${c.classTitle || c.name || c.groupName})`).join(', ');
           } else {
             cellWrap.style.backgroundColor = '#ccffcc';
             cellWrap.title = 'Available';
@@ -1638,9 +1619,8 @@
           // Update current mode
           currentViewMode = tab.getAttribute('data-mode');
           
-          // Re-render
-          renderTopTabs();
-          renderTimetableForCurrentView();
+          // Rebuild the entire timetable to ensure clean DOM and event listeners
+          buildTimetable();
         });
       });
 
