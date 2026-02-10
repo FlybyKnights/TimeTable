@@ -1020,11 +1020,15 @@
         // If editing, check if teacher/room/group changed and update cache
         if(editId && master_config.classes[editId]){
           const oldClass = master_config.classes[editId];
+          // Compare arrays properly
+          const groupsChanged = !oldClass.groupIds || !groupIds || 
+                                oldClass.groupIds.length !== groupIds.length ||
+                                oldClass.groupIds.some((g, i) => g !== groupIds[i]);
           const changed = oldClass.teacherId !== teacherId || 
                           oldClass.roomId !== roomId || 
-                          JSON.stringify(oldClass.groupIds) !== JSON.stringify(groupIds);
+                          groupsChanged;
           if(changed){
-            // Remove old class from cache, update class, then add back
+            // Remove old class from cache with old attributes
             removeClassFromCache(editId);
           }
         }
@@ -1037,8 +1041,10 @@
           timeSlots
         };
         
-        // Update cache with new class data
-        if(editId){
+        // Update cache with new class data (for both new and edited classes)
+        // For new classes or classes with changed attributes, add to cache
+        // The timeSlots are preserved from the old class if editing
+        if(timeSlots.length > 0){
           updateAvailabilityCacheForClass(id, [], timeSlots);
         }
         
