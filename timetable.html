@@ -854,6 +854,14 @@
         titleInput.className = 'title-input';
         titleInput.style.flex = '1';
         if(editId) titleInput.value = master_config.classes[editId].title || '';
+        
+        // Auto-save on title change for existing classes
+        if(editId){
+          titleInput.addEventListener('blur', () => {
+            saveClassFromEditor(editId, wrapper, true);
+          });
+        }
+        
         titleRow.appendChild(titleInput);
         
         // Add time slot counter (read-only display)
@@ -911,6 +919,14 @@
           teacherSelect.appendChild(o);
         });
         if(editId) teacherSelect.value = master_config.classes[editId].teacherId || '';
+        
+        // Auto-save on teacher change for existing classes
+        if(editId){
+          teacherSelect.addEventListener('change', () => {
+            saveClassFromEditor(editId, wrapper, true);
+          });
+        }
+        
         compactRow.appendChild(teacherSelect);
         
         // Room select
@@ -932,6 +948,14 @@
           roomSelect.appendChild(o);
         });
         if(editId) roomSelect.value = master_config.classes[editId].roomId || '';
+        
+        // Auto-save on room change for existing classes
+        if(editId){
+          roomSelect.addEventListener('change', () => {
+            saveClassFromEditor(editId, wrapper, true);
+          });
+        }
+        
         compactRow.appendChild(roomSelect);
         
         wrapper.appendChild(compactRow);
@@ -960,6 +984,11 @@
           groupBtn.addEventListener('click', (e) => {
             e.preventDefault();
             groupBtn.classList.toggle('selected');
+            
+            // Auto-save on group change for existing classes
+            if(editId){
+              saveClassFromEditor(editId, wrapper, true);
+            }
           });
           
           groupsWrap.appendChild(groupBtn);
@@ -1156,15 +1185,21 @@
         content.appendChild(wrapper);
       }
       
-      function saveClassFromEditor(editId, wrapper){
+      function saveClassFromEditor(editId, wrapper, silent = false){
         const title = wrapper.querySelector('.title-input').value.trim();
-        if(!title) return alert('Class title required');
+        if(!title) {
+          if(!silent) alert('Class title required');
+          return;
+        }
         
         // Check uniqueness
         const existingClass = Object.keys(master_config.classes || {}).find(i => 
           master_config.classes[i].title === title && i !== editId
         );
-        if(existingClass) return alert('Class title already exists');
+        if(existingClass) {
+          if(!silent) alert('Class title already exists');
+          return;
+        }
         
         const color = wrapper.querySelector('.color-input').value;
         const teacherId = wrapper.querySelector('.teacher-select').value || '';
@@ -1202,10 +1237,10 @@
         
         // If this was a new class, re-render with the new ID so timeslots can be assigned
         if(!editId){
-          alert('Class created! Now you can assign timeslots.');
+          if(!silent) alert('Class created! Now you can assign timeslots.');
           renderClassEditorForm(id);
         } else {
-          alert('Class saved successfully!');
+          if(!silent) alert('Class saved successfully!');
         }
       }
 
